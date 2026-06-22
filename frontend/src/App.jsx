@@ -263,6 +263,7 @@ function App() {
     setTimer(0);
     setSelectedPhone("");
     sessionStorage.removeItem("admin_role");
+    sessionStorage.removeItem("commissioner_id");
   };
 
   return (
