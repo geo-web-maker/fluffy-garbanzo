@@ -142,7 +142,7 @@ export default function BallotBox({ studentId, onVoteSuccess, apiBase, propCandi
               borderRadius: '10px', 
               textAlign: 'left', 
               marginBottom: '20px', 
-              borderLeft: '6px solid #2c3e50', // Darker left accent
+              borderLeft: 'var(--brand-primary, #2c3e50)', // Darker left accent
               fontSize: '14px', 
               fontWeight: '800', 
               textTransform: 'uppercase',
