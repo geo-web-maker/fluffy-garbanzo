@@ -39,7 +39,7 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
   /* Add this to prevent system themes from washing out your specific colors */
-  color-scheme: only light;
+  /*color-scheme: only light;*/
 }
 
 /* Ensure all headings use the variable color */
