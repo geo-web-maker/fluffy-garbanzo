@@ -1,0 +1,850 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+// Reuse Cloudinary upload helper
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
+  const res = await axios.post(
+    `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+    formData
+  );
+  return res.data.secure_url;
+}
+
+export default function SuperAdminDashboard({ apiBase, onLogout }) {
+  const API_URL = apiBase.replace(/\/$/, '');
+
+  const [activeTab, setActiveTab] = useState('candidates');
+
+  // --- Branding state ---
+  const [branding, setBranding]   = useState({ logo_url: '', primary_color: '#003366', accent_color: '#f1c40f' });
+  const [brandSaving, setBrandSaving] = useState(false);
+
+  // --- Positions state ---
+  const [positions, setPositions]   = useState([]);
+  const [newPosition, setNewPosition] = useState({ title: '', description: '', order: 0 });
+  const [posLoading, setPosLoading]   = useState(false);
+
+  // --- Candidates state (mirrored from AdminDashboard) ---
+  const [candidates, setCandidates] = useState([]);
+  const [newCandidate, setNewCandidate] = useState({ name: '', position: '', image: null, order: 0 });
+  const [uploading, setUploading]   = useState(false);
+  const [editingId, setEditingId]   = useState(null);
+  const [editForm, setEditForm]     = useState({ name: '', position: '', order: 0, newImage: null });
+
+  // --- Applications state ---
+  const [applications, setApplications] = useState([]);
+  const [appsLoading, setAppsLoading]   = useState(false);
+  const [appFilter, setAppFilter]       = useState('all');
+
+  // --- Commissioners state ---
+  const [voters, setVoters]             = useState([]);
+  const [commissioners, setCommissioners] = useState([]);
+  const [voterSearch, setVoterSearch]   = useState('');
+
+  // --- Voters / election state ---
+  const [electionVoters, setElectionVoters] = useState([]);
+  const [isElectionOpen, setIsElectionOpen] = useState(true);
+  const [isCertified, setIsCertified]       = useState(false);
+  const [startTime, setStartTime]           = useState('');
+  const [endTime, setEndTime]               = useState('');
+  const [timerActive, setTimerActive]       = useState(false);
+  const [importing, setImporting]           = useState(false);
+  const [voterSearch2, setVoterSearch2]     = useState('');
+  const [loading, setLoading]               = useState(false);
+  const [lastRefreshed, setLastRefreshed]   = useState(new Date());
+
+  // ── Fetch helpers ──
+
+  const fetchBranding = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/superadmin/branding`);
+      setBranding(res.data);
+    } catch (e) { /* use defaults */ }
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/positions`);
+      setPositions(res.data);
+    } catch (e) {}
+  };
+
+  const fetchCandidates = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/candidates`);
+      setCandidates(res.data);
+    } catch (e) {}
+  };
+
+  const fetchApplications = async () => {
+    setAppsLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/admin/applications`);
+      setApplications(res.data);
+    } catch (e) {}
+    finally { setAppsLoading(false); }
+  };
+
+  const fetchCommissioners = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/superadmin/commissioners`);
+      setCommissioners(res.data);
+    } catch (e) {}
+  };
+
+  const fetchElectionData = async () => {
+    setLoading(true);
+    try {
+      const [voterRes, statusRes] = await Promise.all([
+        axios.get(`${API_URL}/admin/voters`),
+        axios.get(`${API_URL}/election-status`),
+      ]);
+      setElectionVoters(voterRes.data);
+      setIsElectionOpen(statusRes.data.is_open);
+      setIsCertified(statusRes.data.is_certified || false);
+      const s = statusRes.data.start || statusRes.data.start_time;
+      const e = statusRes.data.end   || statusRes.data.end_time;
+      if (s && e) { setStartTime(s); setEndTime(e); setTimerActive(true); }
+      else { setTimerActive(false); }
+      setLastRefreshed(new Date());
+    } catch (e) {}
+    finally { setLoading(false); }
+  };
+
+  const fetchVotersList = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/voters`);
+      setVoters(res.data);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchBranding();
+    fetchPositions();
+    fetchCandidates();
+    fetchApplications();
+    fetchCommissioners();
+    fetchElectionData();
+    fetchVotersList();
+    const interval = setInterval(() => {
+      fetchCandidates();
+      fetchApplications();
+      fetchElectionData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Branding ──
+
+  const handleSaveBranding = async () => {
+    setBrandSaving(true);
+    try {
+      await axios.post(`${API_URL}/superadmin/branding`, branding);
+      // Apply immediately without reload
+      document.documentElement.style.setProperty('--brand-primary', branding.primary_color);
+      document.documentElement.style.setProperty('--brand-accent',  branding.accent_color);
+      alert('Branding saved!');
+    } catch (e) { alert('Failed to save branding.'); }
+    finally { setBrandSaving(false); }
+  };
+
+  // ── Positions ──
+
+  const handleAddPosition = async () => {
+    if (!newPosition.title.trim()) return alert('Position title required.');
+    setPosLoading(true);
+    try {
+      await axios.post(`${API_URL}/positions`, newPosition);
+      setNewPosition({ title: '', description: '', order: 0 });
+      fetchPositions();
+    } catch (e) { alert('Failed to add position.'); }
+    finally { setPosLoading(false); }
+  };
+
+  const handleDeletePosition = async (id) => {
+    if (!window.confirm('Delete this position? Existing candidates under this position are unaffected.')) return;
+    try {
+      await axios.delete(`${API_URL}/positions/${id}`);
+      fetchPositions();
+    } catch (e) { alert('Failed to delete position.'); }
+  };
+
+  // ── Candidates ──
+
+  const handleAddCandidate = async (e) => {
+    e.preventDefault();
+    setUploading(true);
+    try {
+      let imageUrl = 'https://via.placeholder.com/150';
+      if (newCandidate.image) imageUrl = await uploadToCloudinary(newCandidate.image);
+      await axios.post(`${API_URL}/candidates`, {
+        name: newCandidate.name,
+        position: newCandidate.position,
+        image_url: imageUrl,
+        order: parseInt(newCandidate.order) || 0,
+      });
+      setNewCandidate({ name: '', position: '', image: null, order: 0 });
+      fetchCandidates();
+    } catch (e) { alert('Error adding candidate.'); }
+    finally { setUploading(false); }
+  };
+
+  const handleUpdateCandidate = async (id) => {
+    setUploading(true);
+    try {
+      let imageUrl = null;
+      if (editForm.newImage) imageUrl = await uploadToCloudinary(editForm.newImage);
+      await axios.put(`${API_URL}/candidates/${id}`, {
+        name:     editForm.name,
+        position: editForm.position,
+        order:    parseInt(editForm.order) || 0,
+        ...(imageUrl && { image_url: imageUrl }),
+      });
+      setEditingId(null);
+      fetchCandidates();
+    } catch (e) { alert('Update failed.'); }
+    finally { setUploading(false); }
+  };
+
+  const handleRemoveCandidateOverride = async (candidateId) => {
+    if (!window.confirm('Remove this candidate instantly from the ballot?')) return;
+    try {
+      await axios.post(`${API_URL}/superadmin/candidates/${candidateId}/remove`);
+      fetchCandidates();
+      fetchApplications();
+    } catch (e) { alert('Failed to remove candidate.'); }
+  };
+
+  // ── Applications ──
+
+  const handleForceApprove = async (appId) => {
+    if (!window.confirm('Force-approve this application instantly? The candidate will appear on the ballot immediately.')) return;
+    try {
+      await axios.post(`${API_URL}/superadmin/applications/${appId}/force-approve`);
+      fetchApplications();
+      fetchCandidates();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
+
+  const handleForceDeny = async (appId) => {
+    if (!window.confirm('Force-deny this application?')) return;
+    try {
+      await axios.post(`${API_URL}/superadmin/applications/${appId}/force-deny`);
+      fetchApplications();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
+
+  // ── Commissioners ──
+
+  const handleToggleCommissioner = async (studentId) => {
+    try {
+      const res = await axios.post(`${API_URL}/superadmin/commissioners/${encodeURIComponent(studentId)}/toggle`);
+      alert(`${studentId} is now ${res.data.is_commissioner ? 'a commissioner' : 'no longer a commissioner'}.`);
+      fetchCommissioners();
+      fetchVotersList();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed to toggle commissioner.'); }
+  };
+
+  // ── Election controls ──
+
+  const handleToggleElection = async () => {
+    try {
+      const res = await axios.post(`${API_URL}/admin/toggle-election`);
+      setIsElectionOpen(res.data.is_open);
+      alert(`Election is now ${res.data.is_open ? 'OPEN' : 'CLOSED'}.`);
+    } catch (e) { alert('Toggle failed.'); }
+  };
+
+  const handleToggleCertification = async () => {
+    if (isElectionOpen) { alert('Stop the election before certifying results.'); return; }
+    const msg = isCertified
+      ? "Remove the 'Official' stamp from results?"
+      : 'Mark results as FINAL and BINDING?';
+    if (!window.confirm(msg)) return;
+    try {
+      const res = await axios.post(`${API_URL}/admin/toggle-certification`);
+      setIsCertified(res.data.is_certified);
+      alert(`Results ${res.data.is_certified ? 'certified' : 'de-certified'}.`);
+    } catch (e) { alert('Failed.'); }
+  };
+
+  const handleScheduleTimer = async () => {
+    if (!startTime || !endTime) { alert('Set both start and end times.'); return; }
+    try {
+      await axios.post(`${API_URL}/admin/schedule-election`, { start: startTime, end: endTime });
+      setTimerActive(true);
+      alert('Schedule saved!');
+    } catch (e) { alert('Scheduling failed.'); }
+  };
+
+  const handleClearSchedule = async () => {
+    if (!window.confirm('Clear the schedule?')) return;
+    try {
+      await axios.post(`${API_URL}/admin/clear-schedule`);
+      setStartTime(''); setEndTime(''); setTimerActive(false);
+    } catch (e) { alert('Failed to clear schedule.'); }
+  };
+
+  const handleResetElection = async () => {
+    if (!window.confirm('⚠️ DANGER: Delete ALL votes and reset?')) return;
+    if (window.prompt("Type 'RESET' to confirm:") !== 'RESET') return;
+    try {
+      await axios.post(`${API_URL}/admin/reset-election`);
+      alert('Election reset.');
+      fetchElectionData();
+    } catch (e) { alert('Reset failed.'); }
+  };
+
+  const handleImportVoters = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    setImporting(true);
+    try {
+      const res = await axios.post(`${API_URL}/admin/import-voters`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      alert(`Imported ${res.data.imported_count} voters.`);
+      fetchElectionData();
+      fetchVotersList();
+    } catch (e) { alert('Import failed.'); }
+    finally { setImporting(false); e.target.value = null; }
+  };
+
+  // ── Derived ──
+
+  const filteredVoters = electionVoters.filter(v =>
+    v.full_name?.toLowerCase().includes(voterSearch2.toLowerCase()) ||
+    v.student_id?.toLowerCase().includes(voterSearch2.toLowerCase())
+  );
+  const commisssionerIds = new Set(commissioners.map(c => c.student_id));
+  const filteredVoterList = voters.filter(v =>
+    v.full_name?.toLowerCase().includes(voterSearch.toLowerCase()) ||
+    v.student_id?.toLowerCase().includes(voterSearch.toLowerCase())
+  );
+  const filteredApps = appFilter === 'all'
+    ? applications
+    : applications.filter(a => a.status === appFilter);
+
+  const turnout = electionVoters.length > 0
+    ? ((electionVoters.filter(v => v.has_voted).length / electionVoters.length) * 100).toFixed(1)
+    : 0;
+
+  const tabs = [
+    { id: 'candidates',   label: '🏅 Candidates' },
+    { id: 'applications', label: '📋 Applications' },
+    { id: 'commissioners',label: '🏛️ Commission' },
+    { id: 'voters',       label: '🗳️ Voters' },
+    { id: 'positions',    label: '📌 Positions' },
+    { id: 'branding',     label: '🎨 Branding' },
+    { id: 'election',     label: '⚙️ Election' },
+  ];
+
+  return (
+    <div style={outerWrap}>
+      <div style={container}>
+
+        {/* ── Header ── */}
+        <div style={headerFlex}>
+          <div>
+            <h2 style={{ margin: 0, color: 'var(--text-color)' }}>⚡ Superadmin Panel</h2>
+            <span style={{ fontSize: '11px', opacity: 0.5 }}>
+              Sync: {lastRefreshed.toLocaleTimeString()}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={handleToggleElection}
+              style={{ ...btn, backgroundColor: isElectionOpen ? '#e67e22' : '#2ecc71' }}
+            >
+              {isElectionOpen ? '⏸ Stop Election' : '▶️ Start Election'}
+            </button>
+            <button
+              onClick={handleToggleCertification}
+              disabled={isElectionOpen}
+              style={{
+                ...btn,
+                backgroundColor: isCertified ? '#10b981' : '#f59e0b',
+                opacity: isElectionOpen ? 0.5 : 1,
+                cursor: isElectionOpen ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isCertified ? '✅ Certified' : '⚠️ Certify Results'}
+            </button>
+            <button onClick={onLogout} style={{ ...btn, backgroundColor: '#e74c3c' }}>Logout</button>
+          </div>
+        </div>
+
+        {/* ── Tabs ── */}
+        <div style={tabBar}>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              style={{ ...tab, borderBottom: activeTab === t.id ? '3px solid #2ecc71' : '3px solid transparent' }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ══════════════ CANDIDATES TAB ══════════════ */}
+        {activeTab === 'candidates' && (
+          <div style={twoCol}>
+            <div style={card}>
+              <h4 style={cardTitle}>Add Candidate Directly</h4>
+              <form onSubmit={handleAddCandidate} style={formCol}>
+                <input style={inp} placeholder="Full name" value={newCandidate.name}
+                  onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })} required />
+                <input style={inp} placeholder="Position title (must match positions list)"
+                  value={newCandidate.position}
+                  onChange={e => setNewCandidate({ ...newCandidate, position: e.target.value })} required />
+                <input style={inp} type="number" placeholder="Display order (0 = first)"
+                  value={newCandidate.order}
+                  onChange={e => setNewCandidate({ ...newCandidate, order: e.target.value })} />
+                <label style={fileLabel}>
+                  Photo: <input type="file" accept="image/*"
+                    onChange={e => setNewCandidate({ ...newCandidate, image: e.target.files[0] })} />
+                </label>
+                <button type="submit" style={greenBtn} disabled={uploading}>
+                  {uploading ? 'Uploading…' : '+ Add to Ballot'}
+                </button>
+              </form>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <h4 style={{ ...cardTitle, marginBottom: '5px' }}>
+                Current Ballot ({candidates.length} candidates)
+              </h4>
+              {candidates.map(c => (
+                <div key={c._id} style={rowCard}>
+                  {editingId === c._id ? (
+                    <div style={{ ...formCol, width: '100%' }}>
+                      <input style={inp} value={editForm.name}
+                        onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
+                      <input style={inp} value={editForm.position}
+                        onChange={e => setEditForm({ ...editForm, position: e.target.value })} />
+                      <input style={inp} type="number" value={editForm.order}
+                        onChange={e => setEditForm({ ...editForm, order: e.target.value })} />
+                      <label style={fileLabel}>
+                        New photo: <input type="file" accept="image/*"
+                          onChange={e => setEditForm({ ...editForm, newImage: e.target.files[0] })} />
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button style={greenBtn} onClick={() => handleUpdateCandidate(c._id)} disabled={uploading}>Save</button>
+                        <button style={ghostBtn} onClick={() => setEditingId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <img src={c.image_url} alt="" style={avatar} />
+                        <div>
+                          <b style={{ color: 'var(--text-color)' }}>{c.name}</b>
+                          <br />
+                          <small style={{ color: '#2ecc71' }}>{c.position}</small>
+                          {c.application_id && (
+                            <span style={badge}>via application</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button style={editLink}
+                          onClick={() => { setEditingId(c._id); setEditForm({ name: c.name, position: c.position, order: c.order || 0, newImage: null }); }}>
+                          Edit
+                        </button>
+                        <button style={redLink} onClick={() => handleRemoveCandidateOverride(c._id)}>
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ APPLICATIONS TAB ══════════════ */}
+        {activeTab === 'applications' && (
+          <div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {['all','pending','approved','denied','removed'].map(f => (
+                <button key={f} onClick={() => setAppFilter(f)}
+                  style={{ ...ghostBtn, borderColor: appFilter === f ? '#2ecc71' : undefined, color: appFilter === f ? '#2ecc71' : undefined }}>
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {' '}({f === 'all' ? applications.length : applications.filter(a => a.status === f).length})
+                </button>
+              ))}
+            </div>
+
+            {appsLoading && <p style={{ opacity: 0.5 }}>Loading…</p>}
+
+            {filteredApps.length === 0 && !appsLoading && (
+              <p style={{ opacity: 0.5, textAlign: 'center', marginTop: '40px' }}>No applications in this category.</p>
+            )}
+
+            {filteredApps.map(app => (
+              <div key={app._id} style={appCard}>
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                  {app.image_url && (
+                    <img src={app.image_url} alt="" style={{ ...avatar, width: '60px', height: '60px', flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <b style={{ color: 'var(--text-color)', fontSize: '15px' }}>{app.full_name}</b>
+                        <span style={{ ...statusBadge(app.status), marginLeft: '10px' }}>
+                          {app.status.toUpperCase()}
+                          {app.superadmin_override && ' (SA)'}
+                        </span>
+                      </div>
+                      <small style={{ opacity: 0.5 }}>
+                        {new Date(app.submitted_at).toLocaleDateString()}
+                      </small>
+                    </div>
+                    <p style={{ margin: '4px 0', fontSize: '13px', color: '#2ecc71' }}>
+                      Position: {app.position_title || app.position_id}
+                    </p>
+                    <p style={{ margin: '4px 0', fontSize: '12px', opacity: 0.6 }}>
+                      ID: {app.student_id}
+                    </p>
+                    {app.manifesto && (
+                      <p style={{ margin: '8px 0 0', fontSize: '13px', opacity: 0.8, lineHeight: '1.5' }}>
+                        {app.manifesto}
+                      </p>
+                    )}
+                    {app.votes && Object.keys(app.votes).length > 0 && (
+                      <p style={{ margin: '6px 0 0', fontSize: '11px', opacity: 0.5 }}>
+                        Commission votes: {Object.entries(app.votes).map(([k,v]) => `${k}: ${v}`).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Superadmin action buttons — always available */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  {app.status !== 'approved' && app.status !== 'removed' && (
+                    <button style={{ ...greenBtn, flex: 1 }} onClick={() => handleForceApprove(app._id)}>
+                      ⚡ Force Approve
+                    </button>
+                  )}
+                  {app.status !== 'denied' && app.status !== 'removed' && (
+                    <button style={{ ...redBtn, flex: 1 }} onClick={() => handleForceDeny(app._id)}>
+                      ✕ Force Deny
+                    </button>
+                  )}
+                  {app.status === 'approved' && (
+                    <button style={{ ...redBtn, flex: 1 }} onClick={() => {
+                      if (window.confirm('Remove this approved candidate from the ballot?')) {
+                        // Find matching candidate by application_id and remove
+                        const cand = candidates.find(c => c.application_id === app._id);
+                        if (cand) handleRemoveCandidateOverride(cand._id);
+                        else alert('Candidate not found in ballot — may have been removed already.');
+                      }
+                    }}>
+                      🗑️ Remove from Ballot
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ══════════════ COMMISSIONERS TAB ══════════════ */}
+        {activeTab === 'commissioners' && (
+          <div>
+            <div style={{ ...card, marginBottom: '20px' }}>
+              <h4 style={cardTitle}>Current Commissioners ({commissioners.length})</h4>
+              {commissioners.length === 0 && (
+                <p style={{ opacity: 0.5 }}>No commissioners assigned yet. Find voters below and toggle them.</p>
+              )}
+              {commissioners.map(c => (
+                <div key={c.student_id} style={{ ...rowCard, marginBottom: '8px' }}>
+                  <div>
+                    <b style={{ color: 'var(--text-color)' }}>{c.full_name}</b>
+                    <br />
+                    <small style={{ opacity: 0.6 }}>{c.student_id}</small>
+                  </div>
+                  <button style={redLink} onClick={() => handleToggleCommissioner(c.student_id)}>
+                    Revoke
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <h4 style={cardTitle}>Grant Commissioner Access</h4>
+            <input style={{ ...inp, marginBottom: '12px' }}
+              placeholder="Search voters by name or ID…"
+              value={voterSearch}
+              onChange={e => setVoterSearch(e.target.value)} />
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+              {filteredVoterList.filter(v => !commisssionerIds.has(v.student_id)).map(v => (
+                <div key={v.student_id} style={rowCard}>
+                  <div>
+                    <b style={{ color: 'var(--text-color)' }}>{v.full_name}</b>
+                    <br />
+                    <small style={{ opacity: 0.6 }}>{v.student_id}</small>
+                  </div>
+                  <button style={greenBtn} onClick={() => handleToggleCommissioner(v.student_id)}>
+                    + Make Commissioner
+                  </button>
+                </div>
+              ))}
+              {filteredVoterList.filter(v => !commisssionerIds.has(v.student_id)).length === 0 && (
+                <p style={{ textAlign: 'center', opacity: 0.4, padding: '20px' }}>
+                  {voterSearch ? 'No matching voters.' : 'All voters are already commissioners or no voters imported yet.'}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ VOTERS TAB ══════════════ */}
+        {activeTab === 'voters' && (
+          <div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', width: '100%' }}>
+                <div style={statCard}><small>Total Voters</small><h3>{electionVoters.length}</h3></div>
+                <div style={statCard}><small>Voted</small><h3 style={{ color: '#2ecc71' }}>{electionVoters.filter(v => v.has_voted).length}</h3></div>
+                <div style={statCard}><small>Turnout</small><h3>{turnout}%</h3></div>
+                <div style={statCard}><small>Pending</small><h3 style={{ color: '#f1c40f' }}>{electionVoters.filter(v => !v.has_voted).length}</h3></div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ ...card, flexDirection: 'row', alignItems: 'center', padding: '14px', gap: '12px', flex: 1 }}>
+                <span style={{ fontSize: '13px', opacity: 0.7 }}>Import voters CSV</span>
+                <input type="file" accept=".csv" onChange={handleImportVoters} disabled={importing} />
+              </div>
+              <button style={ghostBtn} onClick={fetchElectionData} disabled={loading}>
+                {loading ? 'Syncing…' : '🔄 Refresh'}
+              </button>
+            </div>
+
+            <input style={{ ...inp, marginBottom: '12px' }}
+              placeholder="Search voters…"
+              value={voterSearch2}
+              onChange={e => setVoterSearch2(e.target.value)} />
+
+            <div style={{ maxHeight: '500px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1e293b' }}>
+                  <tr>
+                    {['ID','Name','Status'].map(h => (
+                      <th key={h} style={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredVoters.map(v => (
+                    <tr key={v.student_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={td}><code style={{ fontSize: '12px' }}>{v.student_id}</code></td>
+                      <td style={td}>{v.full_name}</td>
+                      <td style={td}>
+                        <span style={{
+                          fontSize: '10px', padding: '3px 8px', borderRadius: '10px', fontWeight: 'bold',
+                          background: v.has_voted ? '#2ecc7120' : '#f1c40f20',
+                          color: v.has_voted ? '#2ecc71' : '#f1c40f',
+                        }}>
+                          {v.has_voted ? 'VOTED' : (v.last_status || 'IDLE').toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ POSITIONS TAB ══════════════ */}
+        {activeTab === 'positions' && (
+          <div style={twoCol}>
+            <div style={card}>
+              <h4 style={cardTitle}>Add New Position</h4>
+              <div style={formCol}>
+                <input style={inp} placeholder="Position title (e.g. Guild President)"
+                  value={newPosition.title}
+                  onChange={e => setNewPosition({ ...newPosition, title: e.target.value })} />
+                <input style={inp} placeholder="Description (optional)"
+                  value={newPosition.description}
+                  onChange={e => setNewPosition({ ...newPosition, description: e.target.value })} />
+                <input style={inp} type="number" placeholder="Ballot order (0 = first)"
+                  value={newPosition.order}
+                  onChange={e => setNewPosition({ ...newPosition, order: parseInt(e.target.value) || 0 })} />
+                <button style={greenBtn} onClick={handleAddPosition} disabled={posLoading}>
+                  {posLoading ? 'Saving…' : '+ Add Position'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <h4 style={cardTitle}>Current Positions ({positions.length})</h4>
+              {positions.length === 0 && (
+                <p style={{ opacity: 0.5 }}>No positions yet. Add one to allow applicants to apply.</p>
+              )}
+              {positions.map(p => (
+                <div key={p._id} style={rowCard}>
+                  <div>
+                    <b style={{ color: 'var(--text-color)' }}>{p.title}</b>
+                    {p.description && <><br /><small style={{ opacity: 0.6 }}>{p.description}</small></>}
+                    <br />
+                    <small style={{ color: '#3498db' }}>Order: {p.order}</small>
+                  </div>
+                  <button style={redLink} onClick={() => handleDeletePosition(p._id)}>Delete</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ BRANDING TAB ══════════════ */}
+        {activeTab === 'branding' && (
+          <div style={{ maxWidth: '500px' }}>
+            <div style={card}>
+              <h4 style={cardTitle}>Logo & Colour Scheme</h4>
+              <div style={formCol}>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Logo URL</label>
+                <input style={inp} placeholder="https://…"
+                  value={branding.logo_url}
+                  onChange={e => setBranding({ ...branding, logo_url: e.target.value })} />
+                {branding.logo_url && (
+                  <img src={branding.logo_url} alt="Logo preview"
+                    style={{ height: '80px', objectFit: 'contain', marginTop: '6px', borderRadius: '8px' }} />
+                )}
+
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>Primary colour</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input type="color" value={branding.primary_color}
+                    onChange={e => setBranding({ ...branding, primary_color: e.target.value })}
+                    style={{ width: '48px', height: '40px', border: 'none', cursor: 'pointer', borderRadius: '6px' }} />
+                  <input style={{ ...inp, flex: 1 }} value={branding.primary_color}
+                    onChange={e => setBranding({ ...branding, primary_color: e.target.value })} />
+                </div>
+
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>Accent colour</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input type="color" value={branding.accent_color}
+                    onChange={e => setBranding({ ...branding, accent_color: e.target.value })}
+                    style={{ width: '48px', height: '40px', border: 'none', cursor: 'pointer', borderRadius: '6px' }} />
+                  <input style={{ ...inp, flex: 1 }} value={branding.accent_color}
+                    onChange={e => setBranding({ ...branding, accent_color: e.target.value })} />
+                </div>
+
+                {/* Live preview strip */}
+                <div style={{
+                  marginTop: '14px', padding: '12px 16px', borderRadius: '8px',
+                  backgroundColor: branding.primary_color, display: 'flex', gap: '10px', alignItems: 'center'
+                }}>
+                  <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '13px' }}>Preview nav bar</span>
+                  <span style={{
+                    backgroundColor: branding.accent_color, color: branding.primary_color,
+                    padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold'
+                  }}>Active button</span>
+                </div>
+
+                <button style={{ ...greenBtn, marginTop: '14px' }} onClick={handleSaveBranding} disabled={brandSaving}>
+                  {brandSaving ? 'Saving…' : '💾 Save Branding'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ ELECTION TAB ══════════════ */}
+        {activeTab === 'election' && (
+          <div style={{ maxWidth: '600px' }}>
+            <div style={card}>
+              <h4 style={cardTitle}>Schedule Election Period</h4>
+              <div style={formCol}>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Start time</label>
+                <input type="datetime-local" style={inp} value={startTime}
+                  onChange={e => setStartTime(e.target.value)} />
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>End time</label>
+                <input type="datetime-local" style={inp} value={endTime}
+                  onChange={e => setEndTime(e.target.value)} />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button style={greenBtn} onClick={handleScheduleTimer}>
+                    {timerActive ? '🔄 Update Schedule' : 'Set Schedule'}
+                  </button>
+                  {timerActive && (
+                    <button style={ghostBtn} onClick={handleClearSchedule}>Clear Schedule</button>
+                  )}
+                </div>
+                {timerActive && (
+                  <p style={{ color: '#2ecc71', fontSize: '12px', margin: '4px 0 0' }}>
+                    Active: {new Date(startTime).toLocaleString()} — {new Date(endTime).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ ...card, marginTop: '16px', borderColor: '#e74c3c' }}>
+              <h4 style={{ ...cardTitle, color: '#e74c3c' }}>🧨 Danger Zone</h4>
+              <p style={{ fontSize: '13px', opacity: 0.7, margin: '0 0 12px' }}>
+                Full election reset — deletes ALL votes permanently. Certified elections cannot be reset.
+              </p>
+              <button
+                onClick={handleResetElection}
+                disabled={isCertified}
+                style={{
+                  ...btn, backgroundColor: '#d63031',
+                  opacity: isCertified ? 0.4 : 1,
+                  cursor: isCertified ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isCertified ? 'Cannot Reset — Results Certified' : 'Full Election Reset'}
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ── Status badge helper ──
+function statusBadge(status) {
+  const map = {
+    pending:  { background: '#f1c40f20', color: '#f1c40f' },
+    approved: { background: '#2ecc7120', color: '#2ecc71' },
+    denied:   { background: '#e74c3c20', color: '#e74c3c' },
+    removed:  { background: '#95a5a620', color: '#95a5a6' },
+  };
+  return {
+    fontSize: '10px', padding: '3px 8px', borderRadius: '10px', fontWeight: 'bold',
+    ...(map[status] || { background: '#ffffff20', color: '#fff' }),
+  };
+}
+
+// ── Styles ──
+const outerWrap   = { width: '100%', minHeight: '100vh', display: 'flex', justifyContent: 'center', backgroundColor: 'var(--bg-color)', padding: '20px' };
+const container   = { width: '95%', maxWidth: '1200px', backgroundColor: 'var(--card-bg)', borderRadius: '16px', padding: '30px', border: '1px solid var(--border-color)' };
+const headerFlex  = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' };
+const tabBar      = { display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' };
+const tab         = { background: 'none', border: 'none', padding: '10px 16px', cursor: 'pointer', fontWeight: '600', color: 'var(--text-color)', fontSize: '13px', whiteSpace: 'nowrap' };
+const twoCol      = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' };
+const card        = { padding: '20px', border: '1px solid var(--border-color)', borderRadius: '12px', backgroundColor: 'var(--bg-color)' };
+const cardTitle   = { margin: '0 0 14px', color: 'var(--text-color)', fontSize: '15px', fontWeight: '600' };
+const rowCard     = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border-color)', gap: '10px' };
+const appCard     = { border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px', marginBottom: '12px', backgroundColor: 'var(--bg-color)' };
+const formCol     = { display: 'flex', flexDirection: 'column', gap: '10px' };
+const inp         = { padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)', fontSize: '13px', width: '100%', boxSizing: 'border-box' };
+const fileLabel   = { fontSize: '12px', opacity: 0.7 };
+const btn         = { padding: '10px 18px', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' };
+const greenBtn    = { ...btn, backgroundColor: '#2ecc71' };
+const redBtn      = { ...btn, backgroundColor: '#e74c3c' };
+const ghostBtn    = { padding: '9px 14px', background: 'none', border: '1px solid var(--border-color)', color: 'var(--text-color)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' };
+const editLink    = { background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' };
+const redLink     = { background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' };
+const badge       = { marginLeft: '8px', fontSize: '10px', backgroundColor: '#3498db20', color: '#3498db', padding: '2px 6px', borderRadius: '4px' };
+const avatar      = { width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover' };
+const statCard    = { padding: '14px', border: '1px solid var(--border-color)', borderRadius: '10px', textAlign: 'center', color: 'var(--text-color)' };
+const th          = { padding: '10px 14px', textAlign: 'left', color: '#fff', fontSize: '11px', textTransform: 'uppercase' };
+const td          = { padding: '10px 14px', color: 'var(--text-color)', fontSize: '13px' };
