@@ -269,30 +269,25 @@ function App() {
     <div style={containerStyle}>
       <div style={{ 
           width: '100%', 
-          maxWidth: (view === "admin" || view === "results") ? '1200px' : '500px', 
+          maxWidth: (view === "admin" || view === "results" || view === "superadmin" || view === "commission") ? '1200px' : '500px', 
           margin: '0 auto',
           transition: 'max-width 0.3s ease' 
         }}>
         
         <nav className="no-print" style={navBarStyle}>
-          <button 
-            onClick={resetFlow} 
-            style={view === "voter" && step === 1 ? activeNavBtnStyle : navBtnStyle}
-          >
+          <button onClick={resetFlow} style={view === "voter" && step === 1 ? activeNavBtnStyle : navBtnStyle}>
             Vote Now
           </button>
-          
-          <img 
-            src={logoUrl}
-            alt="Logo" 
-            style={logoStyle} 
-          />
         
-          <button 
-            onClick={() => setView("results")} 
-            style={view === "results" ? activeNavBtnStyle : navBtnStyle}
-          >
+          <img src={logoUrl} alt="Logo" style={logoStyle} />
+        
+          <button onClick={() => setView("results")} style={view === "results" ? activeNavBtnStyle : navBtnStyle}>
             Live Results
+          </button>
+        
+          {/* ADD THIS */}
+          <button onClick={() => setView("apply")} style={view === "apply" ? activeNavBtnStyle : navBtnStyle}>
+            Apply
           </button>
         </nav>
 
@@ -335,12 +330,6 @@ function App() {
                 </button>
                 <button onClick={() => setIsAdminPath(!isAdminPath)} style={linkBtnStyle}>
                   {isAdminPath ? "Switch to Voter Login" : "Are you an Admin? Login here"}
-                </button>
-                <button
-                  onClick={() => setView("apply")}
-                  style={view === "apply" ? activeNavBtnStyle : navBtnStyle}
-                >
-                  Apply for Position
                 </button>
                 <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '15px' }}>
                     <button 
@@ -510,9 +499,27 @@ const navBarStyle = { marginBottom: '30px', display: 'flex', justifyContent: 'ce
 
 const logoStyle = { height: '120px', width: 'auto', objectFit: 'contain', margin: '0 10px', filter: 'drop-shadow(0px 0px 4px rgba(241, 196, 15, 0.3))' };
 
-const navBtnStyle = { padding: '10px 24px', backgroundColor: '#003366', color: '#ffffff', border: '2px solid #f1c40f', borderRadius: '30px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', transition: 'all 0.3s ease', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textTransform: 'uppercase', letterSpacing: '1px' };
+const navBtnStyle = {
+  padding: '10px 24px',
+  backgroundColor: 'var(--brand-primary, #003366)',
+  color: '#ffffff',
+  border: '2px solid var(--brand-accent, #f1c40f)',
+  borderRadius: '30px',
+  cursor: 'pointer',
+  fontWeight: '600',
+  fontSize: '14px',
+  transition: 'all 0.3s ease',
+  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+  textTransform: 'uppercase',
+  letterSpacing: '1px'
+};
 
-const activeNavBtnStyle = { ...navBtnStyle, backgroundColor: '#f1c40f', color: '#003366', borderColor: '#003366' };
+const activeNavBtnStyle = {
+  ...navBtnStyle,
+  backgroundColor: 'var(--brand-accent, #f1c40f)',
+  color: 'var(--brand-primary, #003366)',
+  borderColor: 'var(--brand-primary, #003366)'
+};
 
 const cardStyle = { background: 'var(--card-bg)', color: 'var(--text-color)', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: '1px solid var(--border-color)', width: '100%', boxSizing: 'border-box' };
 
