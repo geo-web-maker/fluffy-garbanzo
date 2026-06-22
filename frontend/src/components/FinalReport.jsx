@@ -31,7 +31,7 @@ const shuffleArray = (array) => {
   return shuffled;
 };
 
-export default function FinalReport({ data, totalVotes, isElectionOpen, isCertified }) {
+export default function FinalReport({ data, totalVotes, isElectionOpen, isCertified, logoUrl }) {
   if (!data || !data.results) {
     return null; 
   }
@@ -40,7 +40,6 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
   const activeStage = isElectionOpen ? 'open' : (isCertified ? 'certified' : 'provisional');
   const config = securityConfig[activeStage];
 
-  const LOGO_URL = "https://res.cloudinary.com/dyn2729ou/image/upload/v1773050338/IMG-20260307-WA0117-removebg-preview_ou65sh.png"; 
   const PRIVACY_THRESHOLD = 50; 
   const results = data.results || [];
   
@@ -158,7 +157,7 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
             {/* Right: Union Logo + QR Code */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100px', gap: '10px' }}>
               <img 
-                src={LOGO_URL} 
+                src={logoUrl || "https://res.cloudinary.com/dyn2729ou/image/upload/v1773050338/IMG-20260307-WA0117-removebg-preview_ou65sh.png"}
                 alt="Union Logo" 
                 style={{ width: '70px', height: 'auto' }} 
               />
