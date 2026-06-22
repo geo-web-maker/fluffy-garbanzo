@@ -32,33 +32,36 @@ export default function Results({ apiBase }) {
   const PRIVACY_THRESHOLD = 50;
   const BATCH_SIZE = 10; 
 
-  const fetchData = async () => {
-    try {
-      const [resultsRes, statusRes, votersRes, brandingRes] = await Promise.all([
-        axios.get(`${API_URL}/election-results`),
-        axios.get(`${API_URL}/election-status`),
-        axios.get(`${API_URL}/admin/voters`),
-        axios.get(`${API_URL}/superadmin/branding`).catch(() => ({ data: {} }))  // silent fallback
-      ]);
+const fetchData = async () => {
+  try {
+    const [resultsRes, statusRes, votersRes, brandingRes] = await Promise.all([
+      axios.get(`${API_URL}/election-results`),
+      axios.get(`${API_URL}/election-status`),
+      axios.get(`${API_URL}/admin/voters`),
+      axios.get(`${API_URL}/superadmin/branding`).catch(() => ({ data: {} }))
+    ]);
 
-      const votedList = (votersRes.data || []).filter(v => v.has_voted);
+    const votedList = (votersRes.data || []).filter(v => v.has_voted);
 
-      setElectionData({
-        ...resultsRes.data,
-        voter_roll: votedList,
-        voter_turnout: resultsRes.data.voter_turnout || 0,
-        results: resultsRes.data.results || []
-      });
-      
-      setIsElectionOpen(statusRes.data.is_open);
-      setIsCertified(statusRes.data.is_certified || false); // UPDATED: Pull from API
-      setLastSynced(new Date());
-      setLoading(false);
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      setLoading(false);
-    }
-  };
+    setElectionData({
+      ...resultsRes.data,
+      voter_roll: votedList,
+      voter_turnout: resultsRes.data.voter_turnout || 0,
+      results: resultsRes.data.results || []
+    });
+
+    setIsElectionOpen(statusRes.data.is_open);
+    setIsCertified(statusRes.data.is_certified || false);
+    setLastSynced(new Date());
+    setLoading(false);
+
+    if (brandingRes.data.logo_url) setLogoUrl(brandingRes.data.logo_url);  // ← ADD THIS
+
+  } catch (err) {
+    console.error("Error fetching data:", err);
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
   axios.get(`${API_URL}/superadmin/branding`).then(res => setBranding(res.data)).catch(() => {});
