@@ -55,7 +55,7 @@ app.add_middleware(
 
 # =============================================================================
 # MODELS
-# =============================================================================
+# =============================================================================    
 class ApplicationSubmit(BaseModel):
     student_id:        str
     full_name:         str
@@ -102,9 +102,10 @@ class AdminTestSMS(BaseModel):
 
 # --- Branding & Positions ---
 class BrandingUpdate(BaseModel):
-    logo_url: str
+    logo_url:     str
     primary_color: str
-    accent_color: str
+    accent_color:  str
+    org_name:     str = "Geo_Web Solution Voting System"  
 
 class PositionCreate(BaseModel):
     title: str
@@ -707,7 +708,12 @@ async def commissioner_vote_remove(app_id: str, data: CommissionerVote):
 async def get_branding():
     doc = await db.settings.find_one({"name": "branding"})
     if not doc:
-        return {"logo_url": "", "primary_color": "#003366", "accent_color": "#f1c40f"}
+        return {
+            "logo_url":      "",
+            "primary_color": "#003366",
+            "accent_color":  "#f1c40f",
+            "org_name":      "Geo_Web Solutions Voting Systems"    # ADD
+        }
     doc.pop("_id", None)
     return doc
 
