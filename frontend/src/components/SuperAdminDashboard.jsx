@@ -19,7 +19,7 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
   const [activeTab, setActiveTab] = useState('candidates');
 
   // --- Branding state ---
-  const [branding, setBranding]   = useState({ logo_url: '', primary_color: '#003366', accent_color: '#f1c40f' });
+  const [branding, setBranding] = useState({ logo_url: '', primary_color: '#003366', accent_color: '#f1c40f', org_name: 'Geo_Web Solution Voting Systems' });
   const [brandSaving, setBrandSaving] = useState(false);
 
   // --- Positions state ---
@@ -718,6 +718,13 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
             <div style={card}>
               <h4 style={cardTitle}>Logo & Colour Scheme</h4>
               <div style={formCol}>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Organisation / Union Name</label>
+                <input
+                  style={inp}
+                  placeholder="e.g. KYUCCU"
+                  value={branding.org_name || ''}
+                  onChange={e => setBranding({ ...branding, org_name: e.target.value })}
+                />
                 <label style={{ fontSize: '12px', opacity: 0.7 }}>Logo URL</label>
                 <input style={inp} placeholder="https://…"
                   value={branding.logo_url}
