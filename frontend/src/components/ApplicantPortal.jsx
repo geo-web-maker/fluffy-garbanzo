@@ -57,49 +57,49 @@ export default function ApplicantPortal({ apiBase }) {
   setPaymentProofPreview(URL.createObjectURL(file));
   };
   
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
 
-    if (!form.student_id.trim())  { setError('Student ID is required.');    return; }
-    if (!form.full_name.trim())   { setError('Full name is required.');      return; }
-    if (!form.position_id)        { setError('Please select a position.');   return; }
-    if (!form.manifesto.trim())   { setError('Manifesto cannot be empty.');  return; }
+  if (!form.student_id.trim())  { setError('Student ID is required.');    return; }
+  if (!form.full_name.trim())   { setError('Full name is required.');      return; }
+  if (!form.position_id)        { setError('Please select a position.');   return; }
+  if (!form.manifesto.trim())   { setError('Manifesto cannot be empty.');  return; }
+  if (!paymentMethod) { setError('Please select a payment method.'); return; }
+  if (!paymentProof)  { setError('Please upload proof of payment.'); return; }
 
-    setUploading(true);
-      if (!paymentMethod) { setError('Please select a payment method.'); return; }
-      if (!paymentProof)  { setError('Please upload proof of payment.'); return; }
-      
-      let image_url = '';
-      if (form.image) {
-        image_url = await uploadToCloudinary(form.image);
-      }
-      
-      setUploadingProof(true);
-      let payment_proof_url = '';
-      if (paymentProof) {
-        payment_proof_url = await uploadToCloudinary(paymentProof);
-      }
-      setUploadingProof(false);
-      
-      await axios.post(`${API_URL}/apply`, {
-        student_id:        form.student_id.trim(),
-        full_name:         form.full_name.trim(),
-        position_id:       form.position_id,
-        manifesto:         form.manifesto.trim(),
-        image_url,
-        payment_method:    paymentMethod,
-        payment_proof_url,
-      });
-    
-      setSubmittedName(form.full_name.trim());
-      setSubmitted(true);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Submission failed. Please try again.');
-    } finally {
-      setUploading(false);
+  setUploading(true);
+  try {
+    let image_url = '';
+    if (form.image) {
+      image_url = await uploadToCloudinary(form.image);
     }
-  };
+
+    setUploadingProof(true);
+    let payment_proof_url = '';
+    if (paymentProof) {
+      payment_proof_url = await uploadToCloudinary(paymentProof);
+    }
+    setUploadingProof(false);
+
+    await axios.post(`${API_URL}/apply`, {
+      student_id:        form.student_id.trim(),
+      full_name:         form.full_name.trim(),
+      position_id:       form.position_id,
+      manifesto:         form.manifesto.trim(),
+      image_url,
+      payment_method:    paymentMethod,
+      payment_proof_url,
+    });
+
+    setSubmittedName(form.full_name.trim());
+    setSubmitted(true);
+  } catch (err) {       
+    setError(err.response?.data?.detail || 'Submission failed. Please try again.');
+  } finally {
+    setUploading(false);
+  }
+};
 
   // ── Success screen ──
   if (submitted) {
