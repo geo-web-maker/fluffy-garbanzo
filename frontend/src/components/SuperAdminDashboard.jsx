@@ -725,15 +725,79 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
                   value={branding.org_name || ''}
                   onChange={e => setBranding({ ...branding, org_name: e.target.value })}
                 />
-                <label style={{ fontSize: '12px', opacity: 0.7 }}>Logo URL</label>
-                <input style={inp} placeholder="https://…"
-                  value={branding.logo_url}
-                  onChange={e => setBranding({ ...branding, logo_url: e.target.value })} />
-                {branding.logo_url && (
-                  <img src={branding.logo_url} alt="Logo preview"
-                    style={{ height: '80px', objectFit: 'contain', marginTop: '6px', borderRadius: '8px' }} />
-                )}
-
+        
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Logo</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Hidden file input */}
+                  <input
+                    type="file"
+                    id="logo-upload"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => setBranding({ ...branding, logo_url: ev.target.result });
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  {/* Upload button */}
+                  <label
+                    htmlFor="logo-upload"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 16px',
+                      borderRadius: '8px',
+                      border: '1.5px dashed rgba(255,255,255,0.3)',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: 'inherit',
+                      transition: 'border-color 0.2s',
+                      width: 'fit-content',
+                    }}
+                  >
+                    📁 Choose logo image
+                  </label>
+        
+                  {/* Preview or placeholder */}
+                  {branding.logo_url ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img
+                        src={branding.logo_url}
+                        alt="Logo preview"
+                        style={{ height: '72px', objectFit: 'contain', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px' }}
+                      />
+                      <button
+                        onClick={() => setBranding({ ...branding, logo_url: '' })}
+                        style={{
+                          background: 'rgba(255,80,80,0.15)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '5px 10px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          color: '#ff6b6b',
+                        }}
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      height: '72px', borderRadius: '8px',
+                      background: 'rgba(255,255,255,0.04)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '12px', opacity: 0.4,
+                    }}>
+                      No logo selected
+                    </div>
+                  )}
+                </div>
+        
                 <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>Primary colour</label>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <input type="color" value={branding.primary_color}
@@ -742,7 +806,7 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
                   <input style={{ ...inp, flex: 1 }} value={branding.primary_color}
                     onChange={e => setBranding({ ...branding, primary_color: e.target.value })} />
                 </div>
-
+        
                 <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>Accent colour</label>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <input type="color" value={branding.accent_color}
@@ -751,7 +815,7 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
                   <input style={{ ...inp, flex: 1 }} value={branding.accent_color}
                     onChange={e => setBranding({ ...branding, accent_color: e.target.value })} />
                 </div>
-
+        
                 {/* Live preview strip */}
                 <div style={{
                   marginTop: '14px', padding: '12px 16px', borderRadius: '8px',
@@ -763,7 +827,7 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
                     padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold'
                   }}>Active button</span>
                 </div>
-
+        
                 <button style={{ ...greenBtn, marginTop: '14px' }} onClick={handleSaveBranding} disabled={brandSaving}>
                   {brandSaving ? 'Saving…' : '💾 Save Branding'}
                 </button>
