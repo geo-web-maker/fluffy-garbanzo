@@ -734,12 +734,18 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
                     id="logo-upload"
                     accept="image/*"
                     style={{ display: 'none' }}
-                    onChange={e => {
+                    onChange={async e => {
                       const file = e.target.files[0];
                       if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = ev => setBranding({ ...branding, logo_url: ev.target.result });
-                      reader.readAsDataURL(file);
+                      try {
+                        setBrandSaving(true);
+                        const url = await uploadToCloudinary(file);
+                        setBranding({ ...branding, logo_url: url });
+                      } catch {
+                        alert('Logo upload failed. Check Cloudinary env vars.');
+                      } finally {
+                        setBrandSaving(false);
+                      }
                     }}
                   />
                   {/* Upload button */}
@@ -752,17 +758,18 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
                       padding: '9px 16px',
                       borderRadius: '8px',
                       border: '1.5px dashed rgba(255,255,255,0.3)',
-                      cursor: 'pointer',
+                      cursor: brandSaving ? 'wait' : 'pointer',
                       fontSize: '13px',
                       fontWeight: '500',
                       color: 'inherit',
                       transition: 'border-color 0.2s',
                       width: 'fit-content',
+                      opacity: brandSaving ? 0.5 : 1,
                     }}
                   >
-                    📁 Choose logo image
+                    {brandSaving ? '⏳ Uploading…' : '📁 Choose logo image'}
                   </label>
-        
+                          
                   {/* Preview or placeholder */}
                   {branding.logo_url ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
