@@ -31,7 +31,7 @@ const shuffleArray = (array) => {
   return shuffled;
 };
 
-export default function FinalReport({ data, totalVotes, isElectionOpen, isCertified, logoUrl }) {
+export default function FinalReport({ data, totalVotes, isElectionOpen, isCertified, logoUrl, orgName = "the Organisation", commissionerName = "The Electoral Commissioner" }) {
   if (!data || !data.results) {
     return null; 
   }
@@ -141,17 +141,14 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
             {/* Center: Title Text */}
             <div style={{ textAlign: 'center', flex: 1, padding: '0 20px' }}>
               <h1 style={{ margin: '0', fontSize: '22px', textTransform: 'uppercase', fontWeight: '900' }}>
-                Kyambogo University
+                {universityName}
               </h1>
               <h2 style={{ margin: '2px 0', fontSize: '18px', color: '#1e293b', fontWeight: 'bold' }}>
-                Course Coordinators Union (KYUCCU)
+                {orgName}
               </h2>
               <h3 style={{ margin: '5px 0', fontSize: '16px', fontWeight: '500' }}>
                 Official Election Report 2026/2027
               </h3>
-              <p style={{ color: '#64748b', fontSize: '11px', margin: '0' }}>
-                "Service, Integrity, and Leadership"
-              </p>
             </div>
           
             {/* Right: Union Logo + QR Code */}
@@ -192,20 +189,20 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
           <div style={declarationContainerStyle}>
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 'bold', textDecoration: 'underline', margin: '0' }}>
-                OFFICIAL DECLARATION OF KYUCCU ELECTION RESULTS
+                OFFICIAL DECLARATION OF {orgName.toUpperCase()} ELECTION RESULTS
               </h3>
             </div>
         
             <div style={declarationBodyStyle}>
               <p>
                 I, <strong>Ajuna Christian</strong>, the duly appointed KYUCCU Electoral Commissioner, 
-                hereby declare that the KYUCCU elections conducted on <strong>13th March 2026</strong> through 
-                the official online voting portal were carried out in accordance with the KYUCCU electoral guidelines and procedures.
+                hereby declare that the {orgName} elections conducted on <strong>13th March 2026</strong> through 
+                the official online voting portal were carried out in accordance with the {orgName} electoral guidelines and procedures.
               </p>
               <p style={{ marginTop: '10px' }}>
-                After the close of voting and the verification and tallying of all valid votes cast, 
-                I hereby officially declare the successful candidates listed in the summary below as the 
-                duly elected leaders of the Kyambogo University Course Coordinators' Union (KYUCCU) for the 2026/2027 term.
+                After the close of voting and the verificaty below aion and tallying of all valid votes cast, 
+                I hereby officially declare the successful candidates listed in the summars the 
+                duly elected leaders of the {orgName} for the 2026/2027 term.
               </p>
               <p style={{ marginTop: '10px' }}>
                 I congratulate the successful candidates and extend appreciation to all aspirants, 
@@ -343,7 +340,7 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
         {/* --- SIGNATURE GRID --- */}
         <div style={signatureGrid}>
           <div>
-            <p style={signName}>Ajuna Christian</p>
+            <p style={signName}>{commissionerName}</p>
             <p style={signTitle}>Chairperson EC</p>
             <div style={signLine}></div>
           </div>
@@ -366,11 +363,11 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
 
          <div style={{ marginTop: '30px', fontSize: '10px', borderTop: '1px solid #000', paddingTop: '10px' }}>
               Cc: Quality assurance 
-              Cc: KYUCCU patron 
+              Cc: {orgName} patron 
               Cc:GRC CORDINATORs 
-              Cc: KYUCCU president 
+              Cc: {orgName} president 
               Cc:out going Executive 
-              Cc: all CORDINATORS
+              Cc: all CORDINATOR
             </div>
           </div>
         )}
