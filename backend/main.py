@@ -102,10 +102,13 @@ class AdminTestSMS(BaseModel):
 
 # --- Branding & Positions ---
 class BrandingUpdate(BaseModel):
-    logo_url:     str
-    primary_color: str
-    accent_color:  str
-    org_name:     str = "Geo_Web Solution Voting System"  
+    logo_url:          str
+    primary_color:     str
+    accent_color:      str
+    org_name:          str = ""
+    commissioner_name: str = ""
+    support_phone:     str = ""
+    support_pdf_url:   str = ""
 
 class PositionCreate(BaseModel):
     title: str
