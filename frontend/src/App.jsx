@@ -367,23 +367,25 @@ useEffect(() => {
                     >
                       📖 View Sample Ballot Paper
                     </button>
-                    {/* NEW: Download Register Button */}
-                    <a 
-                      href={supportPdfUrl}
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{ 
-                        ...linkBtnStyle, 
-                        color: '#3498db', 
-                        fontWeight: 'bold',
-                        textDecoration: 'none',
-                        display: 'block',    // Use block to take full width
-                        textAlign: 'center', // Center the text within that width
-                        marginTop: '10px'
-                      }}
-                    >
-                      📥 Download Official Register (PDF)
-                    </a>
+                   
+                    {supportPdfUrl && (
+                      <a 
+                        href={supportPdfUrl}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ 
+                          ...linkBtnStyle, 
+                          color: '#3498db', 
+                          fontWeight: 'bold',
+                          textDecoration: 'none',
+                          display: 'block',
+                          textAlign: 'center',
+                          marginTop: '10px'
+                        }}
+                      >
+                        📥 Download Official Register (PDF)
+                      </a>
+                    )}
                     <a 
                       href={supportPhone ? `https://wa.me/${supportPhone}?text=Hello%20Admin,%20I%20am%20having%20issues%20with%20the%20Election%20Portal.` : "#"}
                       target="_blank"
