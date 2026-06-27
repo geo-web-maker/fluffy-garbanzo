@@ -648,7 +648,9 @@ const handleSetRole = async (studentId, role) => {
                     <button style={redLink} onClick={() => handleToggleCommissioner(c.student_id)}>
                       Revoke
                     </button>
-                    {/* Credentials section */}
+                  </div>
+
+                  {/* Credentials section */}
                   <div style={{ width: '100%', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
                     <small style={{ opacity: 0.5, fontSize: '11px' }}>
                       {c.commissioner_email
@@ -686,11 +688,13 @@ const handleSetRole = async (studentId, role) => {
                       >
                         Save
                       </button>
+                    </div>
                   </div>
+
                 </div>
               ))}
             </div>
-
+            
             <h4 style={cardTitle}>Grant Commissioner Access</h4>
             <input style={{ ...inp, marginBottom: '12px' }}
               placeholder="Search voters by name or ID…"
