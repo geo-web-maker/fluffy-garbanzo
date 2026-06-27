@@ -323,8 +323,8 @@ useEffect(() => {
         {view === "results" && <Results apiBase={API_BASE} />}
         {view === "superadmin" && <SuperAdminDashboard apiBase={API_BASE} onLogout={resetFlow} />}
         {view === "commission" && <CommissionDashboard apiBase={API_BASE} onLogout={resetFlow} />}
-        {view === "apply" && <ApplicantPortal apiBase={API_BASE} />}
-
+        {view === "apply" && <ApplicantPortal apiBase={API_BASE} orgName={orgName} />}
+        
         {view === "voter" && (
           <div style={{ width: '100%' }}>
             {step === 1 && (
