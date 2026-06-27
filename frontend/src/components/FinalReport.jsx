@@ -149,17 +149,19 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
                 {orgName}
               </h2>
               <h3 style={{ margin: '5px 0', fontSize: '16px', fontWeight: '500' }}>
-                Official Election Report 2026/2027
+                Official Election Report
               </h3>
             </div>
           
             {/* Right: Union Logo + QR Code */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100px', gap: '10px' }}>
-              <img 
-                src={logoUrl || "https://res.cloudinary.com/dyn2729ou/image/upload/v1773050338/IMG-20260307-WA0117-removebg-preview_ou65sh.png"}
-                alt="Union Logo" 
-                style={{ width: '70px', height: 'auto' }} 
-              />
+              {logoUrl && (
+                <img 
+                  src={logoUrl}
+                  alt="Union Logo" 
+                  style={{ width: '70px', height: 'auto' }} 
+                />
+              )}
               <div style={{ textAlign: 'center' }}>
                 <img 
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.href)}`} 
@@ -197,18 +199,18 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
         
             <div style={declarationBodyStyle}>
               <p>
-                I, <strong>Ajuna Christian</strong>, the duly appointed KYUCCU Electoral Commissioner, 
-                hereby declare that the {orgName} elections conducted on <strong>13th March 2026</strong> through 
+                I, <strong>{commissionerName}</strong>, the duly appointed Electoral Commissioner, 
+                hereby declare that the {orgName} elections conducted through 
                 the official online voting portal were carried out in accordance with the {orgName} electoral guidelines and procedures.
               </p>
               <p style={{ marginTop: '10px' }}>
-                After the close of voting and the verificaty below aion and tallying of all valid votes cast, 
-                I hereby officially declare the successful candidates listed in the summars the 
-                duly elected leaders of the {orgName} for the 2026/2027 term.
+                After the close of voting and the tallying of all valid votes cast, 
+                I hereby officially declare the successful candidates listed in the summary as the 
+                duly elected leaders of {orgName}.
               </p>
               <p style={{ marginTop: '10px' }}>
                 I congratulate the successful candidates and extend appreciation to all aspirants, 
-                coordinators, and voters for participating and upholding the principles of a free, 
+                members, and voters for participating and upholding the principles of a free, 
                 fair, and transparent election.
               </p>
             </div>
@@ -331,7 +333,7 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
       {/* MANDATE EXPLANATION FOOTNOTE */}
       <div style={{ marginTop: '-15px', marginBottom: '30px', padding: '10px', border: '1px solid #ddd', backgroundColor: '#f9f9f9', breakInside: 'avoid', position: 'relative', zIndex: 1 }}>
         <p style={{ margin: 0, fontSize: '9px', color: '#444', lineHeight: '1.4' }}>
-          <strong>Note on Minimum Mandate:</strong> In accordance with the KYUCCU Election Guidelines 2026, 
+          <strong>Note on Minimum Mandate:</strong> In accordance with the {orgName} Election Guidelines 2026, 
           candidates running unopposed (solo) in any position must secure a minimum of <strong>100 valid votes</strong> 
            to be declared constitutionally elected. Failure to meet this threshold results in an 'Undermandated' 
            status, requiring a by-election or appointment per union bylaws.
@@ -341,37 +343,32 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
      
         {/* --- SIGNATURE GRID --- */}
         <div style={signatureGrid}>
-          <div>
-            <p style={signName}>{commissionerName}</p>
-            <p style={signTitle}>Chairperson EC</p>
-            <div style={signLine}></div>
+            {commissioners.length > 0 ? (
+              commissioners.map((c, i) => (
+                <div key={c.student_id} style={i >= 2 ? { marginTop: '30px' } : {}}>
+                  <p style={signName}>{c.full_name}</p>
+                  <p style={signTitle}>{c.commissioner_role || 'Commissioner'}</p>
+                  <div style={signLine}></div>
+                </div>
+              ))
+            ) : (
+              ['Chairperson EC', 'Secretary EC', 'Commissioner', 'Commissioner'].map((role, i) => (
+                <div key={i} style={i >= 2 ? { marginTop: '30px' } : {}}>
+                  <p style={signName}>&nbsp;</p>
+                  <p style={signTitle}>{role}</p>
+                  <div style={signLine}></div>
+                </div>
+              ))
+            )}
           </div>
-          <div>
-            <p style={signName}>Mwanaisha Rashid</p>
-            <p style={signTitle}>Secretary EC</p>
-            <div style={signLine}></div>
-          </div>
-          <div style={{ marginTop: '30px' }}>
-            <p style={signName}>Daphine Nambozo</p>
-            <p style={signTitle}>Commissioner</p>
-            <div style={signLine}></div>
-          </div>
-          <div style={{ marginTop: '30px' }}>
-            <p style={signName}>Odong Michael</p>
-            <p style={signTitle}>Commissioner</p>
-            <div style={signLine}></div>
-          </div>
-        </div>
 
-         <div style={{ marginTop: '30px', fontSize: '10px', borderTop: '1px solid #000', paddingTop: '10px' }}>
-              Cc: Quality assurance 
-              Cc: {orgName} patron 
-              Cc:GRC CORDINATORs 
-              Cc: {orgName} president 
-              Cc:out going Executive 
-              Cc: all CORDINATOR
-            </div>
+        {ccList.length > 0 && (
+          <div style={{ marginTop: '30px', fontSize: '10px', borderTop: '1px solid #000', paddingTop: '10px' }}>
+            {ccList.map((entry, i) => (
+              <div key={i}>Cc: {entry}</div>
+            ))}
           </div>
+          )}
         )}
               
 
