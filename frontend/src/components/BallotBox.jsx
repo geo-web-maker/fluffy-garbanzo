@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-export default function BallotBox({ studentId, onVoteSuccess, apiBase, propCandidates, isPreview = false }) {
+export default function BallotBox({ studentId, onVoteSuccess, apiBase, propCandidates, isPreview = false, orgName = "" }) {
   const [candidates, setCandidates] = useState(propCandidates || []);
   const [loading, setLoading] = useState(!propCandidates); // Don't show loading if we already have data
   const [isVoting, setIsVoting] = useState(false);
@@ -128,7 +128,7 @@ export default function BallotBox({ studentId, onVoteSuccess, apiBase, propCandi
         ⚠️ SAMPLE BALLOT GUIDE — VOTING DISABLED
       </div>
     )}
-      <h1 style={{ color: '#3b82f6', fontSize: '24px' }}>KYAMBOGO COORDINATORS UNION ELECTION</h1>
+      <h1 style={{ color: '#3b82f6', fontSize: '24px' }}>{orgName ? `${orgName} ELECTION`.toUpperCase() : "ELECTION"}</h1>
       
       {Object.keys(groupedCandidates).map((pos) => (
         <div key={pos} style={{ marginBottom: '30px', padding: '0 10px' }}>
