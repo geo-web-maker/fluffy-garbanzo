@@ -31,7 +31,7 @@ const shuffleArray = (array) => {
   return shuffled;
 };
 
-export default function FinalReport({ data, totalVotes, isElectionOpen, isCertified, logoUrl, orgName = "the Organisation", commissionerName = "The Electoral Commissioner" }) {
+export default function FinalReport({ data, totalVotes, isElectionOpen, isCertified, logoUrl, orgName = "the Organisation", universityName = "", universityLogoUrl = "", commissionerName = "The Electoral Commissioner", ccList = [] }) {
   if (!data || !data.results) {
     return null; 
   }
@@ -131,11 +131,13 @@ export default function FinalReport({ data, totalVotes, isElectionOpen, isCertif
             
             {/* Left: Kyambogo University Logo */}
             <div style={{ width: '100px', textAlign: 'left' }}>
+            {universityLogoUrl && (
               <img 
-                src="https://res.cloudinary.com/dyn2729ou/image/upload/v1773467221/3a635ea3e25d45fca31a6b06490aa4b7_zdmuza.jpg" // <--- Replace with Kyambogo University Logo URL
-                alt="KYU Logo" 
+                src={universityLogoUrl}
+                alt="University Logo" 
                 style={{ width: '80px', height: 'auto' }} 
               />
+            )}
             </div>
           
             {/* Center: Title Text */}
