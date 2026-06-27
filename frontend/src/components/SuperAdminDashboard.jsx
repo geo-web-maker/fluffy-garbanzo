@@ -19,7 +19,7 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
   const [activeTab, setActiveTab] = useState('candidates');
 
   // --- Branding state ---
-const [branding, setBranding] = useState({ logo_url: '', primary_color: '#003366', accent_color: '#f1c40f', org_name: '', university_name: '', university_logo_url: '', commissioner_name: '', support_phone: '', support_pdf_url: '', cc_list: [] });
+  const [branding, setBranding] = useState({ logo_url: '', primary_color: '#003366', accent_color: '#f1c40f', org_name: '', university_name: '', university_logo_url: '', commissioner_name: '', support_phone: '', support_pdf_url: '', cc_list: [] });
   const [brandSaving, setBrandSaving] = useState(false);
 
   // --- Positions state ---
@@ -247,6 +247,21 @@ const [branding, setBranding] = useState({ logo_url: '', primary_color: '#003366
       fetchVotersList();
     } catch (e) { alert(e.response?.data?.detail || 'Failed to toggle commissioner.'); }
   };
+
+  const handleSetChief = async (studentId) => {
+  await axios.post(`${API_URL}/superadmin/commissioners/${encodeURIComponent(studentId)}/set-chief`);
+  fetchCommissioners();
+};
+
+const handleClearChief = async (studentId) => {
+  await axios.post(`${API_URL}/superadmin/commissioners/${encodeURIComponent(studentId)}/clear-chief`);
+  fetchCommissioners();
+};
+
+const handleSetRole = async (studentId, role) => {
+  await axios.post(`${API_URL}/superadmin/commissioners/${encodeURIComponent(studentId)}/set-role`, { role });
+  fetchCommissioners();
+};
 
   // ── Election controls ──
 
@@ -574,15 +589,51 @@ const [branding, setBranding] = useState({ logo_url: '', primary_color: '#003366
                 <p style={{ opacity: 0.5 }}>No commissioners assigned yet. Find voters below and toggle them.</p>
               )}
               {commissioners.map(c => (
-                <div key={c.student_id} style={{ ...rowCard, marginBottom: '8px' }}>
-                  <div>
-                    <b style={{ color: 'var(--text-color)' }}>{c.full_name}</b>
-                    <br />
+                <div key={c.student_id} style={{ ...rowCard, marginBottom: '8px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <b style={{ color: 'var(--text-color)' }}>{c.full_name}</b>
+                      {c.is_chief_commissioner && (
+                        <span style={{ fontSize: '10px', backgroundColor: '#f1c40f20', color: '#f1c40f', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                          ⭐ Chief
+                        </span>
+                      )}
+                    </div>
                     <small style={{ opacity: 0.6 }}>{c.student_id}</small>
+                    <br />
+                    <small style={{ color: '#3498db' }}>Role: {c.commissioner_role || 'Commissioner'}</small>
                   </div>
-                  <button style={redLink} onClick={() => handleToggleCommissioner(c.student_id)}>
-                    Revoke
-                  </button>
+              
+                  <select
+                    value={c.commissioner_role || 'Commissioner'}
+                    onChange={e => handleSetRole(c.student_id, e.target.value)}
+                    style={{ ...inp, width: 'auto', fontSize: '12px', padding: '6px 8px' }}
+                  >
+                    <option value="Chairperson EC">Chairperson EC</option>
+                    <option value="Secretary EC">Secretary EC</option>
+                    <option value="Commissioner">Commissioner</option>
+                    <option value="Treasurer">Treasurer</option>
+                    <option value="Returning Officer">Returning Officer</option>
+                  </select>
+              
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {c.is_chief_commissioner ? (
+                      <button
+                        onClick={() => handleClearChief(c.student_id)}
+                        style={{ ...ghostBtn, color: '#f1c40f', borderColor: '#f1c40f', fontSize: '12px' }}>
+                        Clear Chief
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleSetChief(c.student_id)}
+                        style={{ ...ghostBtn, fontSize: '12px' }}>
+                        ⭐ Set Chief
+                      </button>
+                    )}
+                    <button style={redLink} onClick={() => handleToggleCommissioner(c.student_id)}>
+                      Revoke
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -824,6 +875,56 @@ const [branding, setBranding] = useState({ logo_url: '', primary_color: '#003366
                 </div>
         
                 {/* Live preview strip */}
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>University / Institution Name</label>
+                <input
+                  style={inp}
+                  placeholder="e.g. Kyambogo University"
+                  value={branding.university_name || ''}
+                  onChange={e => setBranding({ ...branding, university_name: e.target.value })}
+                />
+
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>University Logo URL</label>
+                <input
+                  style={inp}
+                  placeholder="e.g. https://your-bucket.r2.dev/university-logo.png"
+                  value={branding.university_logo_url || ''}
+                  onChange={e => setBranding({ ...branding, university_logo_url: e.target.value })}
+                />
+                {branding.university_logo_url && (
+                  <img src={branding.university_logo_url} alt="University logo preview"
+                    style={{ height: '50px', marginTop: '4px', objectFit: 'contain' }} />
+                )}
+
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>WhatsApp Support Number (digits only, with country code)</label>
+                <input
+                  style={inp}
+                  placeholder="e.g. 256745707723"
+                  value={branding.support_phone || ''}
+                  onChange={e => setBranding({ ...branding, support_phone: e.target.value })}
+                />
+
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>Election Details PDF URL</label>
+                <input
+                  style={inp}
+                  placeholder="e.g. https://your-bucket.r2.dev/election-details.pdf"
+                  value={branding.support_pdf_url || ''}
+                  onChange={e => setBranding({ ...branding, support_pdf_url: e.target.value })}
+                />
+
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>Cc List (one per line)</label>
+                <textarea
+                  placeholder={`e.g.\n${branding.org_name || 'Organisation'} Patron\n${branding.org_name || 'Organisation'} President\nDean of Students`}
+                  value={(branding.cc_list || []).join('\n')}
+                  onChange={e => setBranding({
+                    ...branding,
+                    cc_list: e.target.value.split('\n').map(l => l.trim()).filter(Boolean)
+                  })}
+                  rows={5}
+                  style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>
+                  {(branding.cc_list || []).length} entries — these appear at the bottom of the official printed report
+                </small>
                 <div style={{
                   marginTop: '14px', padding: '12px 16px', borderRadius: '8px',
                   backgroundColor: branding.primary_color, display: 'flex', gap: '10px', alignItems: 'center'
