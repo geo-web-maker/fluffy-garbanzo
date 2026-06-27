@@ -883,17 +883,80 @@ const handleSetRole = async (studentId, role) => {
                   onChange={e => setBranding({ ...branding, university_name: e.target.value })}
                 />
 
-                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>University Logo URL</label>
-                <input
-                  style={inp}
-                  placeholder="e.g. https://your-bucket.r2.dev/university-logo.png"
-                  value={branding.university_logo_url || ''}
-                  onChange={e => setBranding({ ...branding, university_logo_url: e.target.value })}
-                />
-                {branding.university_logo_url && (
-                  <img src={branding.university_logo_url} alt="University logo preview"
-                    style={{ height: '50px', marginTop: '4px', objectFit: 'contain' }} />
-                )}
+                <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>University Logo</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="file"
+                    id="university-logo-upload"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={async e => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      try {
+                        setBrandSaving(true);
+                        const url = await uploadToCloudinary(file);
+                        setBranding({ ...branding, university_logo_url: url });
+                      } catch {
+                        alert('University logo upload failed. Check Cloudinary env vars.');
+                      } finally {
+                        setBrandSaving(false);
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="university-logo-upload"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 16px',
+                      borderRadius: '8px',
+                      border: '1.5px dashed rgba(255,255,255,0.3)',
+                      cursor: brandSaving ? 'wait' : 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: 'inherit',
+                      width: 'fit-content',
+                      opacity: brandSaving ? 0.5 : 1,
+                    }}
+                  >
+                    {brandSaving ? '⏳ Uploading…' : '📁 Choose university logo'}
+                  </label>
+
+                  {branding.university_logo_url ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img
+                        src={branding.university_logo_url}
+                        alt="University logo preview"
+                        style={{ height: '72px', objectFit: 'contain', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px' }}
+                      />
+                      <button
+                        onClick={() => setBranding({ ...branding, university_logo_url: '' })}
+                        style={{
+                          background: 'rgba(255,80,80,0.15)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '5px 10px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          color: '#ff6b6b',
+                        }}
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      height: '72px', borderRadius: '8px',
+                      background: 'rgba(255,255,255,0.04)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '12px', opacity: 0.4,
+                    }}>
+                      No university logo selected
+                    </div>
+                  )}
+                </div>
 
                 <label style={{ fontSize: '12px', opacity: 0.7, marginTop: '10px' }}>WhatsApp Support Number (digits only, with country code)</label>
                 <input
