@@ -333,8 +333,11 @@ async def verify_identity(data: IdentityCheck):
     otp       = str(random.randint(100000, 999999))
 
     first_name = student.get("full_name", "Voter").split()[0].capitalize()
-    message    = (
-        f"Hello {first_name}, your KYUCCU 2026 voting code is {otp}. "
+    branding_doc = await db.settings.find_one({"name": "branding"})
+    sms_org_name = (branding_doc or {}).get("org_name", "Election")
+    
+    message = (
+        f"Hello {first_name}, your {sms_org_name} voting code is {otp}. "
         f"Your vote is secret. Do not share this code with anyone. Your voice, your power!"
     )
 
@@ -718,11 +721,18 @@ async def get_branding():
     doc = await db.settings.find_one({"name": "branding"})
     if not doc:
         return {
-            "logo_url":      "",
-            "primary_color": "#003366",
-            "accent_color":  "#f1c40f",
-            "org_name":      "Geo_Web Solutions Voting Systems"    # ADD
+            "logo_url":            "",
+            "primary_color":       "#003366",
+            "accent_color":        "#f1c40f",
+            "org_name":            "",
+            "university_name":     "",
+            "university_logo_url": "",
+            "commissioner_name":   "",
+            "support_phone":       "",
+            "support_pdf_url":     "",
+            "cc_list":             []
         }
+        
     doc.pop("_id", None)
     return doc
 
