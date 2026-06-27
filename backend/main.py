@@ -64,6 +64,9 @@ class ApplicationSubmit(BaseModel):
     image_url:         str = ""
     payment_method:    str = ""     
     payment_proof_url: str = ""      
+
+class CommissionerRoleUpdate(BaseModel):
+    role: str = "Commissioner"
     
 class IdentityCheck(BaseModel):
     student_id: str
@@ -753,13 +756,60 @@ async def delete_position(position_id: str):
 @app.get("/superadmin/commissioners")
 async def list_commissioners():
     result = []
-    async for v in db.voters.find(
-        {"is_commissioner": True},
-        {"_id": 0, "student_id": 1, "full_name": 1}
-    ):
+        async for v in db.voters.find(
+            {"is_commissioner": True},
+            {"_id": 0, "student_id": 1, "full_name": 1, "is_chief_commissioner": 1}
+        ):
         result.append(v)
     return result
 
+@app.post("/superadmin/commissioners/{student_id}/set-chief")
+async def set_chief_commissioner(student_id: str):
+    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+    if not voter:
+        raise HTTPException(404, "Voter not found.")
+    if not voter.get("is_commissioner"):
+        raise HTTPException(400, "This person is not a commissioner.")
+    await db.voters.update_many({}, {"$set": {"is_chief_commissioner": False}})
+    await db.voters.update_one(
+        {"_id": voter["_id"]},
+        {"$set": {"is_chief_commissioner": True}}
+    )
+    return {"student_id": student_id, "is_chief_commissioner": True}
+
+
+@app.post("/superadmin/commissioners/{student_id}/clear-chief")
+async def clear_chief_commissioner(student_id: str):
+    await db.voters.update_one(
+        get_forgiving_filter(student_id),
+        {"$set": {"is_chief_commissioner": False}}
+    )
+    return {"student_id": student_id, "is_chief_commissioner": False}
+
+
+@app.get("/superadmin/chief-commissioner")
+async def get_chief_commissioner():
+    chief = await db.voters.find_one(
+        {"is_chief_commissioner": True},
+        {"_id": 0, "student_id": 1, "full_name": 1}
+    )
+    if not chief:
+        return {"full_name": None}
+    return chief
+
+
+@app.post("/superadmin/commissioners/{student_id}/set-role")
+async def set_commissioner_role(student_id: str, data: CommissionerRoleUpdate):
+    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+    if not voter:
+        raise HTTPException(404, "Voter not found.")
+    if not voter.get("is_commissioner"):
+        raise HTTPException(400, "This person is not a commissioner.")
+    await db.voters.update_one(
+        {"_id": voter["_id"]},
+        {"$set": {"commissioner_role": data.role}}
+    )
+    return {"student_id": student_id, "commissioner_role": data.role}
 
 @app.post("/superadmin/commissioners/{student_id}/toggle")
 async def toggle_commissioner(student_id: str):
