@@ -35,12 +35,12 @@ function App() {
     type: 'success' 
   });
   const examples = [
-  { id: "23/U/BCS/10245/GV", name: "Ayebale Elizabeth" },
-  { id: "22/U/ISD/08940/PD", name: "Namusoke Dorothy Nalwadda" },
-  { id: "23/U/AGE/11223/GV", name: "Kaggwa Paul" },
-  { id: "21/U/BSE/44556/PE", name: "Sserwadda Valentino" },
-  { id: "23/U/BPH/00341/GV", name: "Bakanansa Jesca" }
-];
+    { id: "23/U/BCS/10245/GV", name: "Ayebale Elizabeth" },
+    { id: "22/U/ISD/08940/PD", name: "Namusoke Dorothy Nalwadda" },
+    { id: "23/U/AGE/11223/GV", name: "Kaggwa Paul" },
+    { id: "21/U/BSE/44556/PE", name: "Sserwadda Valentino" },
+    { id: "23/U/BPH/00341/GV", name: "Bakanansa Jesca" }
+  ];
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   const [logoUrl, setLogoUrl] = useState("");
@@ -183,15 +183,20 @@ useEffect(() => {
   
   const handleVerifyIdentity = async (selectedIdx = null) => {
     try {
-      const endpoint = isAdminPath ? "/verify-admin" : "/verify-identity";
-      const res = await axios.post(`${API_BASE}${endpoint}`, {
-        student_id: studentId,
-        full_name: name,
-        phone_index: selectedIdx 
+    const endpoint = isAdminPath ? "/verify-admin" : "/verify-identity";
+    
+    const payload = isAdminPath
+      ? { email: studentId, password: name }
+      : { student_id: studentId, full_name: name };
+    
+      axios.post(`${API_BASE}${endpoint}`, payload
       });
 
       if (res.data.bypass === true) {
         sessionStorage.setItem("admin_role", res.data.role);
+        if (res.data.commissioner_id) {
+          sessionStorage.setItem("commissioner_id", res.data.commissioner_id);
+        }
         setView(res.data.role);
         return;
       }
@@ -329,37 +334,61 @@ useEffect(() => {
           <div style={{ width: '100%' }}>
             {step === 1 && (
               <div style={cardStyle}>
-                <h1 style={{ textAlign: 'center', color: 'var(--text-color)' }}>
-                  {isAdminPath ? "🚀 Admin Login" : "🗳️ Voter Login"}
-                </h1>
-                {!isElectionOpen && !isAdminPath && (
-                  <div style={noticeStyle}>
-                    <strong>Notice:</strong> The election is currently closed.
-                  </div>
-                )}
-                <input 
-                  style={inputStyle}
-                  value={studentId} 
-                  onChange={e => setStudentId(e.target.value)} 
-                  placeholder={`Student Registration Number e.g ${placeholderText.id}`} 
-                />
-                
-                <input 
-                  style={inputStyle}
-                  value={name} 
-                  onChange={e => setName(e.target.value)} 
-                  placeholder={`Full Name e.g ${placeholderText.name}`} 
-                />
-                <button 
-                  onClick={() => handleVerifyIdentity()} 
-                  disabled={!isElectionOpen && !isAdminPath}
-                  style={{ ...primaryBtnStyle, backgroundColor: (isElectionOpen || isAdminPath) ? '#2ecc71' : '#bdc3c7' }}
-                >
-                  {isAdminPath ? "Authorize Admin Access" : "Verify & Send Code"}
-                </button>
-                <button onClick={() => setIsAdminPath(!isAdminPath)} style={linkBtnStyle}>
-                  {isAdminPath ? "Switch to Voter Login" : "Are you an Admin? Login here"}
-                </button>
+              <h1 style={{ textAlign: 'center', color: 'var(--text-color)' }}>
+                {isAdminPath ? "🔐 Admin Login" : "🗳️ Voter Login"}
+              </h1>
+              {!isElectionOpen && !isAdminPath && (
+                <div style={noticeStyle}>
+                  <strong>Notice:</strong> The election is currently closed.
+                </div>
+              )}
+              
+              {isAdminPath ? (
+                <>
+                  <input
+                    style={inputStyle}
+                    value={studentId}
+                    onChange={e => setStudentId(e.target.value)}
+                    placeholder="Email e.g. commissioner@example.com"
+                    type="email"
+                    autoComplete="email"
+                  />
+                  <input
+                    style={inputStyle}
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Password e.g. Comm@2026!"
+                    type="password"
+                    autoComplete="current-password"
+                  />
+                </>
+              ) : (
+                <>
+                  <input
+                    style={inputStyle}
+                    value={studentId}
+                    onChange={e => setStudentId(e.target.value)}
+                    placeholder={`Student Registration Number e.g ${placeholderText.id}`}
+                  />
+                  <input
+                    style={inputStyle}
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder={`Full Name e.g ${placeholderText.name}`}
+                  />
+                </>
+              )}
+              
+              <button
+                onClick={() => handleVerifyIdentity()}
+                disabled={!isElectionOpen && !isAdminPath}
+                style={{ ...primaryBtnStyle, backgroundColor: (isElectionOpen || isAdminPath) ? '#2ecc71' : '#bdc3c7' }}
+              >
+                {isAdminPath ? "Login" : "Verify & Send Code"}
+              </button>
+              <button onClick={() => setIsAdminPath(!isAdminPath)} style={linkBtnStyle}>
+                {isAdminPath ? "Switch to Voter Login" : "Are you an Admin? Login here"}
+              </button>
                 <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '15px' }}>
                     <button 
                       onClick={() => setShowGuide(true)} 
