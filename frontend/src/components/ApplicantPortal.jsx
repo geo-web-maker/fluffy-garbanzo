@@ -143,7 +143,7 @@ const handleSubmit = async (e) => {
             🏅 Apply for a Position
           </h2>
           <p style={{ opacity: 0.6, fontSize: '14px', margin: 0 }}>
-            KYAMBOGO COORDINATORS UNION — KYUCCU 2026 Elections
+            {orgName} Elections
           </p>
         </div>
 
