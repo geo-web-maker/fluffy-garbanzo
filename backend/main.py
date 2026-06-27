@@ -102,13 +102,16 @@ class AdminTestSMS(BaseModel):
 
 # --- Branding & Positions ---
 class BrandingUpdate(BaseModel):
-    logo_url:          str
-    primary_color:     str
-    accent_color:      str
-    org_name:          str = ""
-    commissioner_name: str = ""
-    support_phone:     str = ""
-    support_pdf_url:   str = ""
+    logo_url:            str
+    primary_color:       str
+    accent_color:        str
+    org_name:            str = ""
+    university_name:     str = ""
+    university_logo_url: str = ""
+    commissioner_name:   str = ""
+    support_phone:       str = ""
+    support_pdf_url:     str = ""
+    cc_list:             list[str] = []
 
 class PositionCreate(BaseModel):
     title: str
