@@ -12,6 +12,8 @@ export default function CommissionDashboard({ apiBase, onLogout }) {
   const [denyReasons, setDenyReasons]   = useState({});  // { app_id: string }
   const [showDenyBox, setShowDenyBox]   = useState({});  // { app_id: bool }
   const [voting, setVoting]             = useState({});  // { app_id: bool }
+  const [studentChanges, setStudentChanges] = useState([]);
+  const [scVoting, setScVoting] = useState({});
 
   // On mount — figure out who this commissioner is from sessionStorage
   useEffect(() => {
@@ -23,12 +25,14 @@ export default function CommissionDashboard({ apiBase, onLogout }) {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [appsRes, commRes] = await Promise.all([
+      const [appsRes, commRes, scRes] = await Promise.all([
         axios.get(`${API_URL}/admin/applications`),
         axios.get(`${API_URL}/superadmin/commissioners`),
+        axios.get(`${API_URL}/admin/student-changes`),
       ]);
       setApplications(appsRes.data);
       setTotalCommissioners(commRes.data.length);
+      setStudentChanges(scRes.data);
     } catch (e) {
       console.error('Fetch error:', e);
     } finally {
@@ -80,6 +84,25 @@ export default function CommissionDashboard({ apiBase, onLogout }) {
     }
   };
 
+  const castStudentChangeVote = async (changeId, vote) => {
+    if (!commissionerId.trim()) {
+      alert('Your commissioner ID was not found. Please log out and log in again.');
+      return;
+    }
+    setScVoting(prev => ({ ...prev, [changeId]: true }));
+    try {
+      await axios.post(`${API_URL}/admin/student-changes/${changeId}/vote`, {
+        commissioner_id: commissionerId,
+        vote,
+      });
+      await fetchAll();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Vote failed.');
+    } finally {
+      setScVoting(prev => ({ ...prev, [changeId]: false }));
+    }
+  };
+
   // ── Helpers ──
 
   const safeKey = (id) => id.replace(/[./]/g, '_');
@@ -128,10 +151,11 @@ export default function CommissionDashboard({ apiBase, onLogout }) {
   };
 
   const tabs = [
-    { id: 'pending',  label: '⏳ Pending',  count: pending.length },
-    { id: 'approved', label: '✅ Approved', count: approved.length },
-    { id: 'denied',   label: '❌ Denied',   count: denied.length },
-    { id: 'removed',  label: '🗑️ Removed',  count: removed.length },
+    { id: 'pending',         label: 'Pending',         count: pending.length },
+    { id: 'approved',        label: 'Approved',        count: approved.length },
+    { id: 'denied',          label: 'Denied',          count: denied.length },
+    { id: 'removed',         label: 'Removed',         count: removed.length },
+    { id: 'student_changes', label: 'Student Changes', count: studentChanges.filter(c => c.status === 'pending').length },
   ];
 
   const currentList = listFor(activeTab);
@@ -425,14 +449,108 @@ export default function CommissionDashboard({ apiBase, onLogout }) {
               {/* Superadmin override notice */}
               {app.superadmin_override && (
                 <div style={overrideNote}>
-                  ⚡ This was decided by the superadmin — commission voting bypassed.
+                  This was decided by the superadmin — commission voting bypassed.
                 </div>
               )}
 
             </div>
           );
         })}
+        
+        {/* ── Student Changes tab ── */}
+        {activeTab === 'student_changes' && (
+          <div>
+            {studentChanges.length === 0 && (
+              <div style={emptyState}>
+                <div style={{ fontSize: '40px', marginBottom: '10px' }}>👥</div>
+                <p style={{ opacity: 0.5 }}>No student change requests.</p>
+              </div>
+            )}
+            {studentChanges.map(change => {
+              const myVote   = change.votes?.[safeKey(commissionerId)] || null;
+              const voteTotal = Object.keys(change.votes || {}).length;
+              const isVoting  = scVoting[change._id];
 
+              return (
+                <div key={change._id} style={appCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <b style={{ color: 'var(--text-color)', fontSize: '15px' }}>
+                        {change.change_type === 'add' ? '➕ Add Student' : '➖ Remove Student'}
+                      </b>
+                      <span style={{ ...statusBadge(change.status), marginLeft: '10px' }}>
+                        {change.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <small style={{ opacity: 0.45 }}>
+                      {new Date(change.requested_at).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </small>
+                  </div>
+
+                  <p style={{ margin: '8px 0 2px', fontSize: '13px', color: 'var(--text-color)' }}>
+                    <b>Student:</b> {change.full_name} — <code style={{ fontSize: '12px' }}>{change.student_id}</code>
+                  </p>
+                  {change.change_type === 'add' && (
+                    <p style={{ margin: '2px 0', fontSize: '12px', opacity: 0.6 }}>
+                      Phone: {change.phone}
+                    </p>
+                  )}
+                  <p style={{ margin: '6px 0', fontSize: '13px', opacity: 0.8 }}>
+                    <b>Reason:</b> {change.reason}
+                  </p>
+                  <p style={{ margin: '2px 0', fontSize: '12px', opacity: 0.5 }}>
+                    Requested by: {change.requested_by}
+                  </p>
+
+                  {change.status === 'pending' && totalCommissioners > 0 && (
+                    <div style={tallyRow}>
+                      <span style={{ opacity: 0.6, fontSize: '12px' }}>
+                        Votes ({voteTotal} of {totalCommissioners}):
+                      </span>
+                      <span style={{ color: '#2ecc71', fontWeight: '600', fontSize: '13px' }}>
+                        {Object.values(change.votes || {}).filter(v => v === 'approve').length} approve
+                      </span>
+                      <span style={{ color: '#e74c3c', fontWeight: '600', fontSize: '13px' }}>
+                        {Object.values(change.votes || {}).filter(v => v === 'deny').length} deny
+                      </span>
+                    </div>
+                  )}
+
+                  {change.status === 'pending' && (
+                    <div style={{ marginTop: '12px' }}>
+                      {myVote ? (
+                        <div style={myVoteRow(myVote)}>
+                          {myVote === 'approve' ? '✅ You voted to approve.' : '❌ You voted to deny.'}
+                          <span style={{ opacity: 0.6, fontSize: '12px', marginLeft: '8px' }}>
+                            Waiting for remaining commissioners.
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button
+                            style={{ ...greenBtn, flex: 1 }}
+                            disabled={isVoting}
+                            onClick={() => castStudentChangeVote(change._id, 'approve')}
+                          >
+                            {isVoting ? 'Submitting…' : '✅ Approve'}
+                          </button>
+                          <button
+                            style={{ ...redBtn, flex: 1 }}
+                            disabled={isVoting}
+                            onClick={() => castStudentChangeVote(change._id, 'deny')}
+                          >
+                            {isVoting ? 'Submitting…' : '❌ Deny'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        
       </div>
     </div>
   );
