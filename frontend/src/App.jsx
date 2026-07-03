@@ -7,6 +7,7 @@ import AdminDashboard from './components/AdminDashboard';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import CommissionDashboard from './components/CommissionDashboard';
 import ApplicantPortal from './components/ApplicantPortal';
+import ITAdminDashboard from './components/ITAdminDashboard';
 
 function App() {
   const [supportPdfUrl, setSupportPdfUrl] = useState("");
@@ -196,6 +197,10 @@ useEffect(() => {
         if (res.data.commissioner_id) {
           sessionStorage.setItem("commissioner_id", res.data.commissioner_id);
         }
+          if (res.data.it_admin_id) {
+          sessionStorage.setItem("it_admin_id",   res.data.it_admin_id);
+          sessionStorage.setItem("it_admin_name", res.data.full_name || "");
+        }
         setView(res.data.role);
         return;
       }
@@ -284,13 +289,15 @@ useEffect(() => {
     setSelectedPhone("");
     sessionStorage.removeItem("admin_role");
     sessionStorage.removeItem("commissioner_id");
+    sessionStorage.removeItem("it_admin_id");
+    sessionStorage.removeItem("it_admin_name");
   };
 
   return (
     <div style={containerStyle}>
       <div style={{ 
           width: '100%', 
-          maxWidth: (view === "admin" || view === "results" || view === "superadmin" || view === "commission") ? '1200px' : '500px', 
+          maxWidth: (view === "admin" || view === "results" || view === "superadmin" || view === "commission" || view === "it_admin") ? '1200px' : '500px', 
           margin: '0 auto',
           transition: 'max-width 0.3s ease' 
         }}>
@@ -328,6 +335,8 @@ useEffect(() => {
         {view === "superadmin" && <SuperAdminDashboard apiBase={API_BASE} onLogout={resetFlow} />}
         {view === "commission" && <CommissionDashboard apiBase={API_BASE} onLogout={resetFlow} />}
         {view === "apply" && <ApplicantPortal apiBase={API_BASE} orgName={orgName} />}
+        {view === "it_admin" && <ITAdminDashboard apiBase={API_BASE} onLogout={resetFlow} />}
+        
         
         {view === "voter" && (
           <div style={{ width: '100%' }}>
