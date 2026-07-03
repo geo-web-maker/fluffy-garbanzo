@@ -57,6 +57,18 @@ export default function SuperAdminDashboard({ apiBase, onLogout }) {
   const [loading, setLoading]               = useState(false);
   const [lastRefreshed, setLastRefreshed]   = useState(new Date());
 
+  //---IT Admin and auditlog---
+  const [itAdmins, setItAdmins]             = useState([]);
+  const [itAdminSearch, setItAdminSearch]   = useState('');
+  const [studentChanges, setStudentChanges] = useState([]);
+  const [scFilter, setScFilter]             = useState('all');
+  const [auditLog, setAuditLog]             = useState([]);
+  const [auditFilter, setAuditFilter]       = useState('');
+  const [auditLoading, setAuditLoading]     = useState(false);
+  const [itCredForm, setItCredForm]         = useState({});
+  const [saDirectAdd, setSaDirectAdd]       = useState({ student_id: '', full_name: '', phone: '', reason: '', requested_by: 'superadmin' });
+  const [saDirectRemove, setSaDirectRemove] = useState({ student_id: '', reason: '', requested_by: 'superadmin' });
+
   // ── Fetch helpers ──
 
   const fetchBranding = async () => {
@@ -344,6 +356,90 @@ const handleSetRole = async (studentId, role) => {
     } catch (e) { alert('Import failed.'); }
     finally { setImporting(false); e.target.value = null; }
   };
+  
+  //--IT Admin changes
+  const fetchItAdmins = async () => {
+  try {
+      const res = await axios.get(`${API_URL}/superadmin/it-admins`);
+      setItAdmins(res.data);
+    } catch (e) {}
+  };
+
+const fetchStudentChanges = async () => {
+  try {
+      const res = await axios.get(`${API_URL}/superadmin/student-changes`);
+      setStudentChanges(res.data);
+    } catch (e) {}
+  };
+
+const fetchAuditLog = async () => {
+  setAuditLoading(true);
+  try {
+      const url = auditFilter
+        ? `${API_URL}/superadmin/audit-log?action=${auditFilter}`
+        : `${API_URL}/superadmin/audit-log`;
+      const res = await axios.get(url);
+      setAuditLog(res.data);
+    } catch (e) {}
+    finally { setAuditLoading(false); }
+  };
+
+  const handleToggleItAdmin = async (studentId) => {
+  try {
+      const res = await axios.post(`${API_URL}/superadmin/it-admins/${encodeURIComponent(studentId)}/toggle`);
+      alert(`${studentId} is now ${res.data.is_it_admin ? 'an IT admin' : 'no longer an IT admin'}.`);
+      fetchItAdmins();
+      fetchVotersList();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
+
+const handleSetItAdminCredentials = async (studentId) => {
+  const creds = itCredForm[studentId];
+  if (!creds?.email || !creds?.password) {
+    alert('Email and password are required.');
+    return;
+  }
+  try {
+      await axios.post(`${API_URL}/superadmin/it-admins/${encodeURIComponent(studentId)}/set-credentials`, {
+        email: creds.email, password: creds.password
+      });
+      alert('Credentials saved.');
+      setItCredForm(prev => ({ ...prev, [studentId]: { email: '', password: '' } }));
+      fetchItAdmins();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
+
+const handleForceStudentChange = async (changeId, action) => {
+  const endpoint = action === 'approve'
+      ? `${API_URL}/superadmin/student-changes/${changeId}/force-approve`
+      : `${API_URL}/superadmin/student-changes/${changeId}/force-deny`;
+    if (!window.confirm(`Force ${action} this request?`)) return;
+    try {
+      await axios.post(endpoint);
+      fetchStudentChanges();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
+
+const handleSuperAdminAddStudent = async (e) => {
+  e.preventDefault();
+  // use a separate state for this form — add useState for saDirectAdd
+  try {
+      await axios.post(`${API_URL}/superadmin/students/add`, saDirectAdd);
+      alert('Student added.');
+      setSaDirectAdd({ student_id: '', full_name: '', phone: '', reason: '' });
+      fetchElectionData();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
+
+const handleSuperAdminRemoveStudent = async () => {
+  if (!window.confirm('Remove this student from the voter register?')) return;
+  try {
+      await axios.post(`${API_URL}/superadmin/students/remove`, saDirectRemove);
+      alert('Student removed.');
+      setSaDirectRemove({ student_id: '', reason: '' });
+      fetchElectionData();
+    } catch (e) { alert(e.response?.data?.detail || 'Failed.'); }
+  };
 
   // ── Derived ──
 
@@ -372,6 +468,9 @@ const handleSetRole = async (studentId, role) => {
     { id: 'positions',    label: '📌 Positions' },
     { id: 'branding',     label: '🎨 Branding' },
     { id: 'election',     label: '⚙️ Election' },
+    { id: 'it_admins',  label: '💻 IT Admins' },
+    { id: 'student_changes', label: '👥 Student Changes' },
+    { id: 'audit_log',  label: '📋 Audit Log' },
   ];
 
   return (
