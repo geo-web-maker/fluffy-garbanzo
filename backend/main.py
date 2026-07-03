@@ -141,7 +141,32 @@ class CommissionerVote(BaseModel):
     commissioner_id: str   # the commissioner's student_id
     vote: str              # "approve" or "deny"
     reason: str = ""
+    
+class ITAdminCredentials(BaseModel):
+    email:    str
+    password: str
 
+class ITAdminStudentAdd(BaseModel):
+    student_id:   str
+    full_name:    str
+    phone:        str
+    reason:       str
+    requested_by: str   # IT admin's student_id
+
+class ITAdminStudentRemove(BaseModel):
+    student_id:   str
+    reason:       str
+    requested_by: str
+
+class StudentChangeVote(BaseModel):
+    commissioner_id: str
+    vote:            str   # "approve" or "deny"
+    reason:          str = ""
+
+class StudentChangeCancelRequest(BaseModel):
+    requested_by:      str   # must match original requester
+    cancelled_reason:  str = ""
+    
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -259,6 +284,76 @@ async def _resolve_removal(app_id: str, app_doc: dict):
             {"$set": {"status": "removed", "removal_votes": {}}}
         )
         logger.info(f"🗑️ Candidate from application {app_id} removed by full commission consensus.")
+
+#--IT Administration Helpers---
+
+async def _execute_student_change(change_doc: dict):
+    if change_doc["change_type"] == "add":
+        phone = change_doc.get("phone", "")
+        clean = re.sub(r'\D', '', phone)
+        if clean.startswith('0'):
+            clean = '256' + clean[1:]
+        elif len(clean) == 9 and (clean.startswith('7') or clean.startswith('4')):
+            clean = '256' + clean
+        await db.voters.update_one(
+            {"student_id": change_doc["student_id"]},
+            {"$set": {
+                "full_name":       change_doc["full_name"],
+                "phone_numbers":   [clean],
+                "is_commissioner": False,
+                "is_it_admin":     False,
+                "has_voted":       False,
+                "last_status":     "idle",
+                "added_by_it":     True,
+                "added_by":        change_doc.get("requested_by", "")
+            }},
+            upsert=True
+        )
+    elif change_doc["change_type"] == "remove":
+        await db.voters.delete_one(
+            get_forgiving_filter(change_doc["student_id"])
+        )
+
+async def _resolve_student_change(change_id: str, change_doc: dict):
+    total = await get_commissioner_count()
+    if total == 0:
+        return
+    votes = change_doc.get("votes", {})
+    if len(votes) < total:
+        return
+
+    approve_count = sum(1 for v in votes.values() if v == "approve")
+    deny_count    = sum(1 for v in votes.values() if v == "deny")
+
+    if approve_count == total:
+        await _execute_student_change(change_doc)
+        await db.student_changes.update_one(
+            {"_id": ObjectId(change_id)},
+            {"$set": {"status": "approved", "resolved_at": datetime.utcnow()}}
+        )
+        await log_action("student_change_approved", "commission", {
+            "change_type": change_doc["change_type"],
+            "student_id":  change_doc["student_id"],
+            "requested_by": change_doc.get("requested_by", "")
+        })
+    elif deny_count > 0:
+        await db.student_changes.update_one(
+            {"_id": ObjectId(change_id)},
+            {"$set": {"status": "denied", "resolved_at": datetime.utcnow()}}
+        )
+        await log_action("student_change_denied", "commission", {
+            "change_type": change_doc["change_type"],
+            "student_id":  change_doc["student_id"],
+            "requested_by": change_doc.get("requested_by", "")
+        })
+
+async def log_action(action: str, actor: str, details: dict = {}):
+    await db.audit_log.insert_one({
+        "action":    action,
+        "actor":     actor,
+        "details":   details,
+        "timestamp": datetime.utcnow()
+    })
 
 # =============================================================================
 # SYSTEM & HEALTH
@@ -465,7 +560,26 @@ async def verify_admin(data: AdminLoginCheck):
             "role": "superadmin",
             "message": "Superadmin bypass active."
         }
-
+        
+     # ── IT Admin ──
+    it_admin = await db.voters.find_one({
+        "it_admin_email": {"$regex": f"^{re.escape(data.email)}$", "$options": "i"},
+        "is_it_admin": True
+    })
+    if it_admin:
+        stored_password = it_admin.get("it_admin_password", "")
+        if not stored_password or stored_password != data.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+        await log_action("it_admin_login", it_admin["student_id"], {
+            "email": data.email
+        })
+        return {
+            "status":      "success",
+            "bypass":      True,
+            "role":        "it_admin",
+            "it_admin_id": it_admin["student_id"],
+            "full_name":   it_admin.get("full_name", "")
+        }
     # ── Commissioner: email + password stored in DB ──
     commissioner = await db.voters.find_one({
         "commissioner_email": {"$regex": f"^{re.escape(data.email)}$", "$options": "i"},
