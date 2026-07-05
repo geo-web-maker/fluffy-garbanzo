@@ -64,9 +64,9 @@ class ApplicationSubmit(BaseModel):
     image_url:         str = ""
     payment_method:    str = ""     
     payment_proof_url: str = ""      
-
+    
 class CommissionerRoleUpdate(BaseModel):
-    role: str = "Commissioner"
+    role_label: str   # e.g. "Finance Commissioner", "Deputy Finance", "General Commissioner"
     
 class IdentityCheck(BaseModel):
     student_id: str
@@ -204,6 +204,17 @@ async def send_sms_via_egosms(to_number: str, message_text: str):
     except Exception as e:
         logger.error(f"❌ Connection Error: {e}")
         return False
+
+async def send_credential_notice_sms(voter: dict, role_label: str):
+    phone_list = voter.get("phone_numbers", [])
+    if not phone_list:
+        return False
+    message = (
+        f"Hello {voter.get('full_name', 'User')}, your {role_label} login credentials "
+        f"for the KYUCCU Election Portal have been set or updated by the Superadmin. "
+        f"If you did not expect this, contact the election commission immediately."
+    )
+    return await send_sms_via_egosms(phone_list[0], message)
 
 # --- Application consensus helpers ---
 
@@ -953,9 +964,12 @@ async def set_commissioner_role(student_id: str, data: CommissionerRoleUpdate):
         raise HTTPException(400, "This person is not a commissioner.")
     await db.voters.update_one(
         {"_id": voter["_id"]},
-        {"$set": {"commissioner_role": data.role}}
+        {"$set": {"commissioner_role": data.role_label}}
     )
-    return {"student_id": student_id, "commissioner_role": data.role}
+    await log_action("commissioner_role_set", "superadmin", {
+        "student_id": student_id, "role_label": data.role_label
+    })
+    return {"student_id": student_id, "commissioner_role": data.role_label}
 
 @app.post("/superadmin/commissioners/{student_id:path}/toggle")
 async def toggle_commissioner(student_id: str):
@@ -973,23 +987,25 @@ async def toggle_commissioner(student_id: str):
     })
     return {"student_id": student_id, "is_commissioner": new_val}
 
-@app.post("/superadmin/commissioners/{student_id:path}/set-credentials")
-async def set_commissioner_credentials(student_id: str, data: CommissionerCredentials):
-    """Superadmin assigns email + password to a commissioner."""
+@app.post("/superadmin/it-admins/{student_id:path}/set-credentials")
+async def set_it_admin_credentials(student_id: str, data: ITAdminCredentials):
     voter = await db.voters.find_one(get_forgiving_filter(student_id))
     if not voter:
         raise HTTPException(404, "Voter not found.")
-    if not voter.get("is_commissioner"):
-        raise HTTPException(400, "This person is not a commissioner.")
-    
+    if not voter.get("is_it_admin"):
+        raise HTTPException(400, "This person is not an IT admin.")
     await db.voters.update_one(
         {"_id": voter["_id"]},
         {"$set": {
-            "commissioner_email":    data.email,
-            "commissioner_password": data.password
+            "it_admin_email":    data.email,
+            "it_admin_password": data.password
         }}
     )
-    return {"status": "credentials_set", "student_id": student_id}
+    sms_sent = await send_credential_notice_sms(voter, "IT Admin")
+    await log_action("it_admin_credentials_set", "superadmin", {
+        "student_id": student_id, "sms_notified": sms_sent
+    })
+    return {"status": "credentials_set", "sms_notified": sms_sent}
     
 # --- Application overrides ---
 
@@ -1262,24 +1278,25 @@ async def toggle_it_admin(student_id: str):
     return {"student_id": student_id, "is_it_admin": new_val}
 
 
-@app.post("/superadmin/it-admins/{student_id:path}/set-credentials")
-async def set_it_admin_credentials(student_id: str, data: ITAdminCredentials):
+@app.post("/superadmin/commissioners/{student_id:path}/set-credentials")
+async def set_commissioner_credentials(student_id: str, data: CommissionerCredentials):
     voter = await db.voters.find_one(get_forgiving_filter(student_id))
     if not voter:
         raise HTTPException(404, "Voter not found.")
-    if not voter.get("is_it_admin"):
-        raise HTTPException(400, "This person is not an IT admin.")
+    if not voter.get("is_commissioner"):
+        raise HTTPException(400, "This person is not a commissioner.")
     await db.voters.update_one(
         {"_id": voter["_id"]},
         {"$set": {
-            "it_admin_email":    data.email,
-            "it_admin_password": data.password
+            "commissioner_email":    data.email,
+            "commissioner_password": data.password
         }}
     )
-    await log_action("it_admin_credentials_set", "superadmin", {
-        "student_id": student_id
+    sms_sent = await send_credential_notice_sms(voter, "Commissioner")
+    await log_action("commissioner_credentials_set", "superadmin", {
+        "student_id": student_id, "sms_notified": sms_sent
     })
-    return {"status": "credentials_set"}
+    return {"status": "credentials_set", "sms_notified": sms_sent}
 
 
 @app.get("/superadmin/student-changes")
