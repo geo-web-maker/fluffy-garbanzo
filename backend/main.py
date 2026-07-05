@@ -13,6 +13,8 @@ from datetime import datetime
 from bson import ObjectId
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+import bcrypt
+import string
 
 load_dotenv()
 
@@ -142,9 +144,6 @@ class CommissionerVote(BaseModel):
     vote: str              # "approve" or "deny"
     reason: str = ""
     
-class ITAdminCredentials(BaseModel):
-    email:    str
-    password: str
 
 class ITAdminStudentAdd(BaseModel):
     student_id:        str
@@ -168,6 +167,17 @@ class StudentChangeVote(BaseModel):
 class StudentChangeCancelRequest(BaseModel):
     requested_by:      str   # must match original requester
     cancelled_reason:  str = ""
+    
+class SetEmailOnly(BaseModel):
+    email: str
+
+class SetNewPassword(BaseModel):
+    email:        str
+    old_password: str   # the temp password they logged in with
+    new_password: str
+
+class ResetPasswordRequest(BaseModel):
+    pass   # no body needed — student_id comes from the URL path
     
 # =============================================================================
 # HELPER FUNCTIONS
@@ -205,14 +215,34 @@ async def send_sms_via_egosms(to_number: str, message_text: str):
         logger.error(f"❌ Connection Error: {e}")
         return False
 
-async def send_credential_notice_sms(voter: dict, role_label: str):
+# =============================================================================
+# PASSWORD HELPERS
+# =============================================================================
+
+def generate_temp_password() -> str:
+    """Simple 6-digit numeric code — easy to read and type from an SMS."""
+    return ''.join(random.choices(string.digits, k=6))
+
+def hash_password(plain_password: str) -> str:
+    return bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not hashed_password:
+        return False
+    try:
+        return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+    except Exception:
+        return False
+
+async def send_temp_password_sms(voter: dict, role_label: str, temp_password: str) -> bool:
     phone_list = voter.get("phone_numbers", [])
     if not phone_list:
         return False
     message = (
-        f"Hello {voter.get('full_name', 'User')}, your {role_label} login credentials "
-        f"for the KYUCCU Election Portal have been set or updated by the Superadmin. "
-        f"If you did not expect this, contact the election commission immediately."
+        f"Hello {voter.get('full_name', 'User')}, your temporary {role_label} login code "
+        f"for the KYUCCU Election Portal is {temp_password}. "
+        f"You will be asked to set a new password on first login. "
+        f"Do not share this code with anyone."
     )
     return await send_sms_via_egosms(phone_list[0], message)
 
@@ -571,7 +601,7 @@ async def submit_application(data: ApplicationSubmit):
 
 @app.post("/verify-admin")
 async def verify_admin(data: AdminLoginCheck):
-    # ── Superadmin: email + password from env ──
+    # ── Superadmin ── (env var based, no hashing needed — this is you)
     if data.email == SUPER_ADMIN_ID and data.password == SUPER_ADMIN_NAME:
         return {
             "status": "success",
@@ -579,27 +609,27 @@ async def verify_admin(data: AdminLoginCheck):
             "role": "superadmin",
             "message": "Superadmin bypass active."
         }
-        
-     # ── IT Admin ──
+
+    # ── IT Admin ──
     it_admin = await db.voters.find_one({
         "it_admin_email": {"$regex": f"^{re.escape(data.email)}$", "$options": "i"},
         "is_it_admin": True
     })
     if it_admin:
-        stored_password = it_admin.get("it_admin_password", "")
-        if not stored_password or stored_password != data.password:
+        stored_hash = it_admin.get("it_admin_password_hash", "")
+        if not verify_password(data.password, stored_hash):
             raise HTTPException(status_code=401, detail="Invalid email or password.")
-        await log_action("it_admin_login", it_admin["student_id"], {
-            "email": data.email
-        })
+        await log_action("it_admin_login", it_admin["student_id"], {"email": data.email})
         return {
-            "status":      "success",
-            "bypass":      True,
-            "role":        "it_admin",
-            "it_admin_id": it_admin["student_id"],
-            "full_name":   it_admin.get("full_name", "")
+            "status":              "success",
+            "bypass":              True,
+            "role":                "it_admin",
+            "it_admin_id":         it_admin["student_id"],
+            "full_name":           it_admin.get("full_name", ""),
+            "must_change_password": it_admin.get("it_admin_must_change_password", True)
         }
-    # ── Commissioner: email + password stored in DB ──
+
+    # ── Commissioner ──
     commissioner = await db.voters.find_one({
         "commissioner_email": {"$regex": f"^{re.escape(data.email)}$", "$options": "i"},
         "is_commissioner": True
@@ -607,16 +637,18 @@ async def verify_admin(data: AdminLoginCheck):
     if not commissioner:
         raise HTTPException(status_code=404, detail="Invalid email or password.")
 
-    stored_password = commissioner.get("commissioner_password", "")
-    if not stored_password or stored_password != data.password:
+    stored_hash = commissioner.get("commissioner_password_hash", "")
+    if not verify_password(data.password, stored_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
+    await log_action("commissioner_login", commissioner["student_id"], {"email": data.email})
     return {
-        "status": "success",
-        "bypass": True,
-        "role": "commission",
-        "commissioner_id": commissioner["student_id"],
-        "full_name": commissioner.get("full_name", "")
+        "status":              "success",
+        "bypass":              True,
+        "role":                "commission",
+        "commissioner_id":     commissioner["student_id"],
+        "full_name":           commissioner.get("full_name", ""),
+        "must_change_password": commissioner.get("commissioner_must_change_password", True)
     }
 
 
@@ -739,6 +771,49 @@ async def get_all_voters():
         voters.append(v)
     return voters
 
+@app.post("/admin/set-password")
+async def set_new_password(data: SetNewPassword):
+    # Try IT admin first
+    it_admin = await db.voters.find_one({
+        "it_admin_email": {"$regex": f"^{re.escape(data.email)}$", "$options": "i"},
+        "is_it_admin": True
+    })
+    if it_admin:
+        if not verify_password(data.old_password, it_admin.get("it_admin_password_hash", "")):
+            raise HTTPException(401, "Current password is incorrect.")
+        if len(data.new_password) < 6:
+            raise HTTPException(400, "New password must be at least 6 characters.")
+        await db.voters.update_one(
+            {"_id": it_admin["_id"]},
+            {"$set": {
+                "it_admin_password_hash":        hash_password(data.new_password),
+                "it_admin_must_change_password": False
+            }}
+        )
+        await log_action("it_admin_password_changed", it_admin["student_id"], {})
+        return {"status": "password_updated"}
+
+    # Try commissioner
+    commissioner = await db.voters.find_one({
+        "commissioner_email": {"$regex": f"^{re.escape(data.email)}$", "$options": "i"},
+        "is_commissioner": True
+    })
+    if commissioner:
+        if not verify_password(data.old_password, commissioner.get("commissioner_password_hash", "")):
+            raise HTTPException(401, "Current password is incorrect.")
+        if len(data.new_password) < 6:
+            raise HTTPException(400, "New password must be at least 6 characters.")
+        await db.voters.update_one(
+            {"_id": commissioner["_id"]},
+            {"$set": {
+                "commissioner_password_hash":        hash_password(data.new_password),
+                "commissioner_must_change_password": False
+            }}
+        )
+        await log_action("commissioner_password_changed", commissioner["student_id"], {})
+        return {"status": "password_updated"}
+
+    raise HTTPException(404, "Account not found.")
 
 # --- Candidates (superadmin can add/edit/delete freely; commission does not touch these) ---
 
@@ -988,22 +1063,27 @@ async def toggle_commissioner(student_id: str):
     return {"student_id": student_id, "is_commissioner": new_val}
 
 @app.post("/superadmin/it-admins/{student_id:path}/set-credentials")
-async def set_it_admin_credentials(student_id: str, data: ITAdminCredentials):
+async def set_it_admin_credentials(student_id: str, data: SetEmailOnly):
     voter = await db.voters.find_one(get_forgiving_filter(student_id))
     if not voter:
         raise HTTPException(404, "Voter not found.")
     if not voter.get("is_it_admin"):
         raise HTTPException(400, "This person is not an IT admin.")
+
+    temp_password = generate_temp_password()
+    hashed = hash_password(temp_password)
+
     await db.voters.update_one(
         {"_id": voter["_id"]},
         {"$set": {
-            "it_admin_email":    data.email,
-            "it_admin_password": data.password
+            "it_admin_email":                data.email,
+            "it_admin_password_hash":        hashed,
+            "it_admin_must_change_password": True
         }}
     )
-    sms_sent = await send_credential_notice_sms(voter, "IT Admin")
+    sms_sent = await send_temp_password_sms(voter, "IT Admin", temp_password)
     await log_action("it_admin_credentials_set", "superadmin", {
-        "student_id": student_id, "sms_notified": sms_sent
+        "student_id": student_id, "email": data.email, "sms_notified": sms_sent
     })
     return {"status": "credentials_set", "sms_notified": sms_sent}
     
@@ -1129,6 +1209,50 @@ async def request_add_student(data: ITAdminStudentAdd):
     })
     return {"status": "requested", "id": str(result.inserted_id)}
 
+@app.post("/superadmin/it-admins/{student_id:path}/reset-password")
+async def reset_it_admin_password(student_id: str):
+    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+    if not voter or not voter.get("is_it_admin"):
+        raise HTTPException(404, "IT admin not found.")
+
+    temp_password = generate_temp_password()
+    hashed = hash_password(temp_password)
+
+    await db.voters.update_one(
+        {"_id": voter["_id"]},
+        {"$set": {
+            "it_admin_password_hash":        hashed,
+            "it_admin_must_change_password": True
+        }}
+    )
+    sms_sent = await send_temp_password_sms(voter, "IT Admin", temp_password)
+    await log_action("it_admin_password_reset", "superadmin", {
+        "student_id": student_id, "sms_notified": sms_sent
+    })
+    return {"status": "password_reset", "sms_notified": sms_sent}
+
+
+@app.post("/superadmin/commissioners/{student_id:path}/reset-password")
+async def reset_commissioner_password(student_id: str):
+    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+    if not voter or not voter.get("is_commissioner"):
+        raise HTTPException(404, "Commissioner not found.")
+
+    temp_password = generate_temp_password()
+    hashed = hash_password(temp_password)
+
+    await db.voters.update_one(
+        {"_id": voter["_id"]},
+        {"$set": {
+            "commissioner_password_hash":        hashed,
+            "commissioner_must_change_password": True
+        }}
+    )
+    sms_sent = await send_temp_password_sms(voter, "Commissioner", temp_password)
+    await log_action("commissioner_password_reset", "superadmin", {
+        "student_id": student_id, "sms_notified": sms_sent
+    })
+    return {"status": "password_reset", "sms_notified": sms_sent}
 
 @app.post("/it-admin/students/request-remove")
 async def request_remove_student(data: ITAdminStudentRemove):
@@ -1279,22 +1403,27 @@ async def toggle_it_admin(student_id: str):
 
 
 @app.post("/superadmin/commissioners/{student_id:path}/set-credentials")
-async def set_commissioner_credentials(student_id: str, data: CommissionerCredentials):
+async def set_commissioner_credentials(student_id: str, data: SetEmailOnly):
     voter = await db.voters.find_one(get_forgiving_filter(student_id))
     if not voter:
         raise HTTPException(404, "Voter not found.")
     if not voter.get("is_commissioner"):
         raise HTTPException(400, "This person is not a commissioner.")
+
+    temp_password = generate_temp_password()
+    hashed = hash_password(temp_password)
+
     await db.voters.update_one(
         {"_id": voter["_id"]},
         {"$set": {
-            "commissioner_email":    data.email,
-            "commissioner_password": data.password
+            "commissioner_email":                data.email,
+            "commissioner_password_hash":        hashed,
+            "commissioner_must_change_password": True
         }}
     )
-    sms_sent = await send_credential_notice_sms(voter, "Commissioner")
+    sms_sent = await send_temp_password_sms(voter, "Commissioner", temp_password)
     await log_action("commissioner_credentials_set", "superadmin", {
-        "student_id": student_id, "sms_notified": sms_sent
+        "student_id": student_id, "email": data.email, "sms_notified": sms_sent
     })
     return {"status": "credentials_set", "sms_notified": sms_sent}
 
