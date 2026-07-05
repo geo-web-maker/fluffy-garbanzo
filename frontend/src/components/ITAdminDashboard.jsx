@@ -10,7 +10,13 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
   const [activeTab, setActiveTab] = useState('add');
   const [myRequests, setMyRequests] = useState([]);
   const [loading, setLoading]       = useState(false);
-
+  
+  // --Payment states
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentProof, setPaymentProof]   = useState(null);
+  const [paymentProofPreview, setPaymentProofPreview] = useState(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  
   // ── Add student form state ──
   const [addForm, setAddForm] = useState({
     student_id: '', full_name: '', phone: '', reason: ''
@@ -27,6 +33,18 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
 
   // ── Cancel state ──
   const [cancelling, setCancelling] = useState({});
+
+  //helpers
+  async function uploadToCloudinary(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      formData
+    );
+    return res.data.secure_url;
+  }
 
   useEffect(() => {
     fetchMyRequests();
@@ -53,31 +71,43 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
     e.preventDefault();
     setAddError('');
     setAddSuccess('');
-
+  
     if (!addForm.student_id.trim()) { setAddError('Student ID is required.'); return; }
     if (!addForm.full_name.trim())  { setAddError('Full name is required.');  return; }
     if (!addForm.phone.trim())      { setAddError('Phone number is required.'); return; }
     if (!addForm.reason.trim())     { setAddError('Reason is required.');     return; }
-
+    if (!paymentMethod)             { setAddError('Please select a payment method.'); return; }
+    if (!paymentProof)              { setAddError('Please upload proof of payment.'); return; }
+  
     setAddSubmitting(true);
     try {
+      setUploadingProof(true);
+      const payment_proof_url = await uploadToCloudinary(paymentProof);
+      setUploadingProof(false);
+  
       await axios.post(`${API_URL}/it-admin/students/request-add`, {
-        student_id:   addForm.student_id.trim(),
-        full_name:    addForm.full_name.trim(),
-        phone:        addForm.phone.trim(),
-        reason:       addForm.reason.trim(),
-        requested_by: itAdminId,
+        student_id:        addForm.student_id.trim(),
+        full_name:         addForm.full_name.trim(),
+        phone:             addForm.phone.trim(),
+        reason:            addForm.reason.trim(),
+        requested_by:      itAdminId,
+        payment_method:    paymentMethod,
+        payment_proof_url,
       });
       setAddSuccess('Request submitted. Waiting for commission approval.');
       setAddForm({ student_id: '', full_name: '', phone: '', reason: '' });
+      setPaymentMethod('');
+      setPaymentProof(null);
+      setPaymentProofPreview(null);
       fetchMyRequests();
     } catch (e) {
       setAddError(e.response?.data?.detail || 'Failed to submit request.');
     } finally {
       setAddSubmitting(false);
+      setUploadingProof(false);
     }
   };
-
+  
   // ── Remove student ──
 
   const handleRemoveSubmit = async (e) => {
@@ -172,7 +202,7 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
 
         {/* ══════════════ ADD STUDENT ══════════════ */}
         {activeTab === 'add' && (
-          <div style={{ maxWidth: '540px' }}>
+          <div style={twoColLayout}>
             <div style={card}>
               <h4 style={cardTitle}>Request to Add a Student</h4>
               <p style={{ fontSize: '12px', opacity: 0.6, margin: '0 0 16px' }}>
@@ -201,13 +231,61 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
                   placeholder="e.g. Student was missed during initial registration."
                   value={addForm.reason}
                   onChange={e => setAddForm({ ...addForm, reason: e.target.value })} />
-
+                
+                <label style={{ ...lbl, marginTop: '14px' }}>Payment Method *</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {['Mobile Money (MTN)', 'Mobile Money (Airtel)', 'Bank Transfer', 'Cash Receipt'].map(method => (
+                    <div
+                      key={method}
+                      onClick={() => setPaymentMethod(method)}
+                      style={{
+                        padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
+                        border: paymentMethod === method ? '2px solid #2ecc71' : '1px solid var(--border-color)',
+                        backgroundColor: paymentMethod === method ? '#2ecc7110' : 'var(--card-bg)',
+                        fontSize: '13px', color: 'var(--text-color)'
+                      }}
+                    >
+                      {method}
+                    </div>
+                  ))}
+                </div>
+                
+                <label style={{ ...lbl, marginTop: '10px' }}>Proof of Payment *</label>
+                <label style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '2px dashed var(--border-color)', borderRadius: '10px',
+                  padding: '16px', cursor: 'pointer', minHeight: '90px'
+                }}>
+                  {paymentProofPreview ? (
+                    <img src={paymentProofPreview} alt="Proof preview"
+                      style={{ maxHeight: '150px', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }} />
+                  ) : (
+                    <div style={{ textAlign: 'center', opacity: 0.5, fontSize: '13px' }}>
+                      🧾 Click to upload receipt or screenshot
+                    </div>
+                  )}
+                  <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      setPaymentProof(file);
+                      setPaymentProofPreview(URL.createObjectURL(file));
+                    }} />
+                </label>
+                {paymentProofPreview && (
+                  <button type="button"
+                    style={{ ...ghostBtn, marginTop: '6px', fontSize: '12px', color: '#e74c3c' }}
+                    onClick={() => { setPaymentProof(null); setPaymentProofPreview(null); }}>
+                    Remove receipt
+                  </button>
+                )}
+                
                 {addError && <div style={errorBox}>⚠️ {addError}</div>}
                 {addSuccess && <div style={successBox}>✅ {addSuccess}</div>}
 
-                <button type="submit" style={{ ...greenBtn, marginTop: '14px' }} disabled={addSubmitting}>
-                  {addSubmitting ? 'Submitting…' : '📨 Submit Add Request'}
-                </button>
+              <button type="submit" style={{ ...greenBtn, marginTop: '14px' }} disabled={addSubmitting}>
+                {uploadingProof ? '⏳ Uploading receipt…' : addSubmitting ? 'Submitting…' : '📨 Submit Add Request'}
+              </button>
               </form>
             </div>
           </div>
@@ -339,8 +417,9 @@ function statusBadge(status) {
 }
 
 // ── Styles ──
+const twoColLayout = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' };
 const outerWrap   = { width: '100%', minHeight: '100vh', display: 'flex', justifyContent: 'center', backgroundColor: 'var(--bg-color)', padding: '20px' };
-const container   = { width: '95%', maxWidth: '860px', backgroundColor: 'var(--card-bg)', borderRadius: '16px', padding: '30px', border: '1px solid var(--border-color)' };
+const container   = { width: '95%', maxWidth: '1200px', backgroundColor: 'var(--card-bg)', borderRadius: '16px', padding: '30px', border: '1px solid var(--border-color)' };
 const headerFlex  = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' };
 const tabBar      = { display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' };
 const tab         = { background: 'none', border: 'none', padding: '10px 16px', cursor: 'pointer', fontWeight: '600', color: 'var(--text-color)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' };
