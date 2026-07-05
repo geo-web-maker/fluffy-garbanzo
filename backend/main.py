@@ -990,7 +990,7 @@ async def list_commissioners():
     result = []
     async for v in db.voters.find(
         {"is_commissioner": True},
-        {"_id": 0, "student_id": 1, "full_name": 1, "is_chief_commissioner": 1, "commissioner_role": 1, "commissioner_email": 1, "commissioner_password": 1}
+        {"_id": 0, "student_id": 1, "full_name": 1, "is_chief_commissioner": 1, "commissioner_role": 1, "commissioner_email": 1}
     ):
         result.append(v)
     return result
