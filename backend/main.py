@@ -558,18 +558,18 @@ async def verify_otp(data: OTPCheck, request: Request):
     raise HTTPException(status_code=400, detail="Invalid OTP. Please check your messages and try again.")
 
 @app.post("/vote")
-async def cast_vote(data: VoteRequest):
-    student = await db.voters.find_one(get_forgiving_filter(data.student_id))
+async def cast_vote(data: VoteRequest, request: Request):
+    student = await db.voters.find_one(org_query(request, get_forgiving_filter(data.student_id)))
     if not student or student.get("has_voted"):
         raise HTTPException(status_code=400, detail="Ineligible voter")
     await db.voters.update_one({"_id": student["_id"]}, {"$set": {"has_voted": True, "last_status": "completed"}})
-    await db.candidates.update_one({"_id": ObjectId(data.candidate_id)}, {"$inc": {"votes": 1}})
+    await db.candidates.update_one(org_query(request, {"_id": ObjectId(data.candidate_id)}), {"$inc": {"votes": 1}})
     return {"status": "success"}
 
 
 @app.post("/vote-bulk")
-async def cast_bulk_vote(data: BulkVoteRequest):
-    student = await db.voters.find_one(get_forgiving_filter(data.student_id))
+async def cast_bulk_vote(data: BulkVoteRequest, request: Request):
+    student = await db.voters.find_one(org_query(request, get_forgiving_filter(data.student_id)))
     if not student:
         raise HTTPException(status_code=404, detail="Voter not found")
     if student.get("has_voted"):
@@ -582,7 +582,7 @@ async def cast_bulk_vote(data: BulkVoteRequest):
 
     for c_id in data.candidate_ids:
         try:
-            await db.candidates.update_one({"_id": ObjectId(c_id)}, {"$inc": {"votes": 1}})
+            await db.candidates.update_one(org_query(request, {"_id": ObjectId(c_id)}), {"$inc": {"votes": 1}})
         except Exception:
             continue
 
@@ -795,7 +795,7 @@ async def test_egosms_connection(data: AdminTestSMS):
 
 
 @app.post("/admin/import-voters")
-async def import_voters(file: UploadFile = File(...)):
+async def import_voters(request: Request, file: UploadFile = File(...)):
     content = await file.read()
     reader  = csv.DictReader(io.StringIO(content.decode('utf-8-sig')))
     count   = 0
@@ -823,8 +823,8 @@ async def import_voters(file: UploadFile = File(...)):
                     formatted_numbers.append(clean)
 
             await db.voters.update_one(
-                {"student_id": sid},
-                {"$set": {
+                org_query(request, {"student_id": sid}),
+                {"$set": org_stamp(request, {
                     "full_name":       name,
                     "phone_numbers":   formatted_numbers,
                     "is_commissioner": False,
@@ -832,7 +832,7 @@ async def import_voters(file: UploadFile = File(...)):
                     "last_active":     None,
                     "last_status":     "idle",
                     "updated_at":      now
-                }},
+                })},
                 upsert=True
             )
             count += 1
@@ -840,9 +840,9 @@ async def import_voters(file: UploadFile = File(...)):
     return {"status": "success", "imported_count": count}
 
 @app.get("/admin/voters")
-async def get_all_voters():
+async def get_all_voters(request: Request):
     voters = []
-    async for v in db.voters.find({}, {"_id": 0}):
+    async for v in db.voters.find(org_query(request), {"_id": 0}):
         voters.append(v)
     return voters
 
