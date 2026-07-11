@@ -318,38 +318,45 @@ async def send_temp_password_sms(voter: dict, role_label: str, temp_password: st
 
 # --- Application consensus helpers ---
 
-async def get_commissioner_count() -> int:
-    return await db.voters.count_documents({"is_commissioner": True})
+async def get_commissioner_count(org_id: str = None) -> int:
+    q = {"is_commissioner": True}
+    if org_id:
+        q["org_id"] = org_id
+    return await db.voters.count_documents(q)
 
-async def _resolve_position_title(position_id: str) -> tuple[str, int]:
+async def _resolve_position_title(position_id: str, org_id: str = None) -> tuple[str, int]:
     """Returns (title, order) for a position id, with safe fallbacks."""
     try:
-        pos = await db.positions.find_one({"_id": ObjectId(position_id)})
+        q = {"_id": ObjectId(position_id)}
+        if org_id:
+            q["org_id"] = org_id
+        pos = await db.positions.find_one(q)
         if pos:
             return pos.get("title", position_id), pos.get("order", 0)
     except Exception:
         pass
     return position_id, 0
 
-async def _create_candidate_from_application(app_doc: dict):
-    title, order = await _resolve_position_title(app_doc.get("position_id", ""))
+async def _create_candidate_from_application(app_doc: dict, org_id: str = None):
+    title, order = await _resolve_position_title(app_doc.get("position_id", ""), org_id)
     await db.candidates.insert_one({
         "name": app_doc["full_name"],
         "position": title,
         "image_url": app_doc.get("image_url", ""),
         "order": order,
         "votes": 0,
-        "application_id": str(app_doc["_id"])
+        "application_id": str(app_doc["_id"]),
+        "org_id": org_id
     })
 
-async def _resolve_application(app_id: str, app_doc: dict):
+async def _resolve_application(app_id: str, app_doc: dict, org_id: str = None):
     """
     Called after every commissioner vote.
     Resolves as soon as either side reaches a majority of the TOTAL commissioner
     count (floor(total/2) + 1) — not full consensus, and not just majority of
     votes cast. Works the same way whether the EC has 5 commissioners or 50.
     """
-    total = await get_commissioner_count()
+    total = await get_commissioner_count(org_id)
     if total == 0:
         return
 
@@ -361,44 +368,48 @@ async def _resolve_application(app_id: str, app_doc: dict):
 
     if approve_count >= required:
         # Majority reached — create candidate and mark approved
-        await _create_candidate_from_application(app_doc)
+        await _create_candidate_from_application(app_doc, org_id)
         await db.applications.update_one(
             {"_id": ObjectId(app_id)},
             {"$set": {"status": "approved"}}
         )
-        await log_action("application_approved", "commission", {"app_id": app_id})
-        logger.info(f"✅ Application {app_id} approved by full commission consensus.")
+        await log_action("application_approved", "commission", {
+            "app_id": app_id, "approve_count": approve_count, "total_commissioners": total
+        })
+        logger.info(f"✅ Application {app_id} approved by commission majority ({approve_count}/{total}).")
     elif deny_count >= required:
         # Majority reached against — application denied
         await db.applications.update_one(
             {"_id": ObjectId(app_id)},
             {"$set": {"status": "denied"}}
         )
-        await log_action("application_denied", "commission", {"app_id": app_id})
-        logger.info(f"❌ Application {app_id} denied — commissioner voted against.")
+        await log_action("application_denied", "commission", {
+            "app_id": app_id, "deny_count": deny_count, "total_commissioners": total
+        })
+        logger.info(f"❌ Application {app_id} denied by commission majority ({deny_count}/{total}).")
 
-async def _resolve_removal(app_id: str, app_doc: dict):
+async def _resolve_removal(app_id: str, app_doc: dict, org_id: str = None):
     """
     Called after every removal vote.
-    Removes the candidate only when ALL commissioners agree to remove.
+    Removes the candidate once a majority of the TOTAL commissioner count votes
+    to remove — same threshold rule as application approval.
     """
-    total = await get_commissioner_count()
+    total = await get_commissioner_count(org_id)
     if total == 0:
         return
 
-    removal_votes = app_doc.get("removal_votes", {})
-    if len(removal_votes) < total:
-        return
+    required = (total // 2) + 1  # majority of total commissioner count
 
+    removal_votes = app_doc.get("removal_votes", {})
     approve_removals = sum(1 for v in removal_votes.values() if v == "approve")
 
-    if approve_removals == total:
+    if approve_removals >= required:
         await db.candidates.delete_one({"application_id": app_id})
         await db.applications.update_one(
             {"_id": ObjectId(app_id)},
             {"$set": {"status": "removed", "removal_votes": {}}}
         )
-        logger.info(f"🗑️ Candidate from application {app_id} removed by full commission consensus.")
+        logger.info(f"🗑️ Candidate from application {app_id} removed by commission majority ({approve_removals}/{total}).")
 
 #--IT Administration Helpers---
 
@@ -590,9 +601,9 @@ async def cast_bulk_vote(data: BulkVoteRequest, request: Request):
 
 
 @app.get("/candidates")
-async def get_candidates():
+async def get_candidates(request: Request):
     candidates = []
-    async for cand in db.candidates.find({}).sort("order", 1):
+    async for cand in db.candidates.find(org_query(request)).sort("order", 1):
         cand["_id"] = str(cand["_id"])
         candidates.append(cand)
     return candidates
@@ -602,23 +613,23 @@ async def get_candidates():
 # =============================================================================
 
 @app.get("/positions")
-async def get_positions():
+async def get_positions(request: Request):
     positions = []
-    async for p in db.positions.find({}).sort("order", 1):
+    async for p in db.positions.find(org_query(request)).sort("order", 1):
         p["_id"] = str(p["_id"])
         positions.append(p)
     return positions
 
 @app.post("/apply")
-async def submit_application(data: ApplicationSubmit):
-    existing = await db.applications.find_one({
+async def submit_application(data: ApplicationSubmit, request: Request):
+    existing = await db.applications.find_one(org_query(request, {
         "student_id": data.student_id,
         "position_id": data.position_id
-    })
+    }))
     if existing:
         raise HTTPException(400, "You have already applied for this position.")
 
-    await db.applications.insert_one({
+    await db.applications.insert_one(org_stamp(request, {
         **data.dict(),
         "status": "pending",
         "votes": {},          # { commissioner_student_id: "approve" | "deny" }
@@ -627,7 +638,7 @@ async def submit_application(data: ApplicationSubmit):
         "finance_cleared_by": None,
         "finance_cleared_at": None,
         "submitted_at": datetime.utcnow()
-    })
+    }))
     await log_action("application_submitted", data.student_id, {
     "position_id": data.position_id,
     "full_name":   data.full_name
@@ -933,8 +944,8 @@ async def set_new_password(data: SetNewPassword, request: Request):
 # --- Candidates (superadmin can add/edit/delete freely; commission does not touch these) ---
 
 @app.post("/candidates")
-async def add_candidate(candidate: CandidateCreate):
-    result = await db.candidates.insert_one(candidate.dict())
+async def add_candidate(candidate: CandidateCreate, request: Request):
+    result = await db.candidates.insert_one(org_stamp(request, candidate.dict()))
     await log_action("candidate_added", "superadmin", {
         "name": candidate.name, "position": candidate.position
     })
@@ -942,7 +953,7 @@ async def add_candidate(candidate: CandidateCreate):
 
 
 @app.put("/candidates/{candidate_id}")
-async def update_candidate(candidate_id: str, data: dict):
+async def update_candidate(candidate_id: str, data: dict, request: Request):
     upd = {
         "name":     data.get("name"),
         "position": data.get("position"),
@@ -950,21 +961,21 @@ async def update_candidate(candidate_id: str, data: dict):
     }
     if data.get("image_url"):
         upd["image_url"] = data["image_url"]
-    await db.candidates.update_one({"_id": ObjectId(candidate_id)}, {"$set": upd})
+    await db.candidates.update_one(org_query(request, {"_id": ObjectId(candidate_id)}), {"$set": upd})
     return {"status": "success"}
 
 
 @app.delete("/candidates/{candidate_id}")
-async def delete_candidate(candidate_id: str):
-    await db.candidates.delete_one({"_id": ObjectId(candidate_id)})
+async def delete_candidate(candidate_id: str, request: Request):
+    await db.candidates.delete_one(org_query(request, {"_id": ObjectId(candidate_id)}))
     return {"status": "deleted"}
 
 
 # --- Applications list (shared: both superadmin and commission can read) ---
 
 @app.get("/admin/applications")
-async def list_applications(status: str = None):
-    query = {}
+async def list_applications(request: Request, status: str = None):
+    query = org_query(request)
     if status:
         query["status"] = status
     apps = []
@@ -972,7 +983,7 @@ async def list_applications(status: str = None):
         a["_id"] = str(a["_id"])
         if a.get("position_id"):
             try:
-                pos = await db.positions.find_one({"_id": ObjectId(a["position_id"])})
+                pos = await db.positions.find_one(org_query(request, {"_id": ObjectId(a["position_id"])}))
                 a["position_title"] = pos["title"] if pos else a.get("position_id", "")
             except Exception:
                 a["position_title"] = a.get("position_id", "")
@@ -985,12 +996,12 @@ async def list_applications(status: str = None):
 # =============================================================================
 
 @app.post("/admin/applications/{app_id}/vote")
-async def commissioner_vote(app_id: str, data: CommissionerVote):
+async def commissioner_vote(app_id: str, data: CommissionerVote, request: Request):
     """A commissioner casts their approve/deny vote on a pending application."""
     if data.vote not in ("approve", "deny"):
         raise HTTPException(400, "vote must be 'approve' or 'deny'.")
 
-    app_doc = await db.applications.find_one({"_id": ObjectId(app_id)})
+    app_doc = await db.applications.find_one(org_query(request, {"_id": ObjectId(app_id)}))
     if not app_doc:
         raise HTTPException(404, "Application not found.")
     if app_doc.get("status") in ("approved", "denied", "removed"):
@@ -999,52 +1010,52 @@ async def commissioner_vote(app_id: str, data: CommissionerVote):
         raise HTTPException(400, "Awaiting Finance Commissioner clearance before voting can open.")
 
     # Verify the voter exists and is actually a commissioner
-    commissioner = await db.voters.find_one({
+    commissioner = await db.voters.find_one(org_query(request, {
         **get_forgiving_filter(data.commissioner_id),
         "is_commissioner": True
-    })
+    }))
     if not commissioner:
         raise HTTPException(403, "Not a registered commissioner.")
 
     # Record vote (keyed by commissioner_id so they can only vote once per application)
     await db.applications.update_one(
-        {"_id": ObjectId(app_id)},
+        org_query(request, {"_id": ObjectId(app_id)}),
         {"$set": {f"votes.{data.commissioner_id.replace('.', '_').replace('/', '_')}": data.vote}}
     )
 
-    updated = await db.applications.find_one({"_id": ObjectId(app_id)})
-    await _resolve_application(app_id, updated)
+    updated = await db.applications.find_one(org_query(request, {"_id": ObjectId(app_id)}))
+    await _resolve_application(app_id, updated, request.state.org_id)
 
     return {"status": "vote_recorded"}
 
 
 @app.post("/admin/applications/{app_id}/vote-remove")
-async def commissioner_vote_remove(app_id: str, data: CommissionerVote):
+async def commissioner_vote_remove(app_id: str, data: CommissionerVote, request: Request):
     """A commissioner votes to remove an already-approved candidate."""
     if data.vote not in ("approve", "deny"):
         raise HTTPException(400, "vote must be 'approve' (remove) or 'deny' (keep).")
 
-    app_doc = await db.applications.find_one({"_id": ObjectId(app_id)})
+    app_doc = await db.applications.find_one(org_query(request, {"_id": ObjectId(app_id)}))
     if not app_doc:
         raise HTTPException(404, "Application not found.")
     if app_doc.get("status") != "approved":
         raise HTTPException(400, "Can only vote to remove an approved candidate.")
 
-    commissioner = await db.voters.find_one({
+    commissioner = await db.voters.find_one(org_query(request, {
         **get_forgiving_filter(data.commissioner_id),
         "is_commissioner": True
-    })
+    }))
     if not commissioner:
         raise HTTPException(403, "Not a registered commissioner.")
 
     safe_key = data.commissioner_id.replace('.', '_').replace('/', '_')
     await db.applications.update_one(
-        {"_id": ObjectId(app_id)},
+        org_query(request, {"_id": ObjectId(app_id)}),
         {"$set": {f"removal_votes.{safe_key}": data.vote}}
     )
 
-updated = await db.applications.find_one({"_id": ObjectId(app_id)})
-    await _resolve_removal(app_id, updated)
+    updated = await db.applications.find_one(org_query(request, {"_id": ObjectId(app_id)}))
+    await _resolve_removal(app_id, updated, request.state.org_id)
 
     return {"status": "removal_vote_recorded"}
 
@@ -1056,7 +1067,7 @@ async def finance_clear_application(app_id: str, data: FinanceClear):
     the application for voting. No commissioner (including her) can cast a vote
     on this application until this is done.
     """
-    app_doc = await db.applications.find_one({"_id": ObjectId(app_id)})
+    app_doc = await db.applications.find_one(org_query(request, {"_id": ObjectId(app_id)}))
     if not app_doc:
         raise HTTPException(404, "Application not found.")
     if app_doc.get("status") in ("approved", "denied", "removed"):
@@ -1064,16 +1075,16 @@ async def finance_clear_application(app_id: str, data: FinanceClear):
     if app_doc.get("finance_cleared"):
         raise HTTPException(400, "This application has already been finance-cleared.")
 
-    finance_commissioner = await db.voters.find_one({
+    finance_commissioner = await db.voters.find_one(org_query(request, {
         **get_forgiving_filter(data.commissioner_id),
         "is_commissioner": True,
         "is_finance_commissioner": True
-    })
+    }))
     if not finance_commissioner:
         raise HTTPException(403, "Only the designated Finance Commissioner can clear applications.")
 
     await db.applications.update_one(
-        {"_id": ObjectId(app_id)},
+        org_query(request, {"_id": ObjectId(app_id)}),
         {"$set": {
             "finance_cleared": True,
             "finance_cleared_by": data.commissioner_id,
@@ -1086,7 +1097,7 @@ async def finance_clear_application(app_id: str, data: FinanceClear):
 
 
 @app.get("/commission/results/detailed")
-async def get_commission_detailed_results():
+async def get_commission_detailed_results(request: Request):
     """
     Detailed, per-position results view for the Commission portal so
     commissioners can monitor and announce standings themselves. Built entirely
@@ -1095,18 +1106,18 @@ async def get_commission_detailed_results():
     anonymity risk; it's the same anonymous data /election-results already
     exposes publicly, just grouped and enriched for commission use.
     """
-    total_voters = await db.voters.count_documents({})
-    voted_count  = await db.voters.count_documents({"has_voted": True})
+    total_voters = await db.voters.count_documents(org_query(request))
+    voted_count  = await db.voters.count_documents(org_query(request, {"has_voted": True}))
 
     positions_by_id = {}
-    async for pos in db.positions.find({}).sort("order", 1):
+    async for pos in db.positions.find(org_query(request)).sort("order", 1):
         positions_by_id[str(pos["_id"])] = pos
 
     grouped: dict = {}
-    async for cand in db.candidates.find({}).sort("order", 1):
+    async for cand in db.candidates.find(org_query(request)).sort("order", 1):
         position_title = cand.get("position", "Unknown Position")
         grouped.setdefault(position_title, []).append(cand)
-
+        
     detailed = []
     for position_title, candidates in grouped.items():
         position_total_votes = sum(c.get("votes", 0) for c in candidates)
@@ -1385,37 +1396,37 @@ async def save_branding(data: BrandingUpdate):
 # --- Positions ---
 
 @app.post("/positions")
-async def add_position(data: PositionCreate):
-    result = await db.positions.insert_one(data.dict())
+async def add_position(data: PositionCreate, request: Request):
+    result = await db.positions.insert_one(org_stamp(request, data.dict()))
     return {"id": str(result.inserted_id)}
 
 
 @app.delete("/positions/{position_id}")
-async def delete_position(position_id: str):
-    await db.positions.delete_one({"_id": ObjectId(position_id)})
+async def delete_position(position_id: str, request: Request):
+    await db.positions.delete_one(org_query(request, {"_id": ObjectId(position_id)}))
     return {"status": "deleted"}
 
 
 # --- Commissioner management ---
 
 @app.get("/superadmin/commissioners")
-async def list_commissioners():
+async def list_commissioners(request: Request):
     result = []
     async for v in db.voters.find(
-        {"is_commissioner": True},
-        {"_id": 0, "student_id": 1, "full_name": 1, "is_chief_commissioner": 1, "commissioner_role": 1, "commissioner_email": 1}
+        org_query(request, {"is_commissioner": True}),
+        {"_id": 0, "student_id": 1, "full_name": 1, "is_chief_commissioner": 1, "is_finance_commissioner": 1, "commissioner_role": 1, "commissioner_email": 1}
     ):
         result.append(v)
     return result
     
 @app.post("/superadmin/commissioners/{student_id:path}/set-chief")
-async def set_chief_commissioner(student_id: str):
-    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+async def set_chief_commissioner(student_id: str, request: Request):
+    voter = await db.voters.find_one(org_query(request, get_forgiving_filter(student_id)))
     if not voter:
         raise HTTPException(404, "Voter not found.")
     if not voter.get("is_commissioner"):
         raise HTTPException(400, "This person is not a commissioner.")
-    await db.voters.update_many({}, {"$set": {"is_chief_commissioner": False}})
+    await db.voters.update_many(org_query(request), {"$set": {"is_chief_commissioner": False}})
     await db.voters.update_one(
         {"_id": voter["_id"]},
         {"$set": {"is_chief_commissioner": True}}
@@ -1424,18 +1435,18 @@ async def set_chief_commissioner(student_id: str):
 
 
 @app.post("/superadmin/commissioners/{student_id:path}/clear-chief")
-async def clear_chief_commissioner(student_id: str):
+async def clear_chief_commissioner(student_id: str, request: Request):
     await db.voters.update_one(
-        get_forgiving_filter(student_id),
+        org_query(request, get_forgiving_filter(student_id)),
         {"$set": {"is_chief_commissioner": False}}
     )
     return {"student_id": student_id, "is_chief_commissioner": False}
 
 
 @app.get("/superadmin/chief-commissioner")
-async def get_chief_commissioner():
+async def get_chief_commissioner(request: Request):
     chief = await db.voters.find_one(
-        {"is_chief_commissioner": True},
+        org_query(request, {"is_chief_commissioner": True}),
         {"_id": 0, "student_id": 1, "full_name": 1}
     )
     if not chief:
@@ -1444,15 +1455,15 @@ async def get_chief_commissioner():
 
 
 @app.post("/superadmin/commissioners/{student_id:path}/set-finance-commissioner")
-async def set_finance_commissioner(student_id: str):
+async def set_finance_commissioner(student_id: str, request: Request):
     """Designate one commissioner as the Finance Commissioner (Treasurer).
     Only one at a time — mirrors the chief-commissioner exclusivity pattern."""
-    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+    voter = await db.voters.find_one(org_query(request, get_forgiving_filter(student_id)))
     if not voter:
         raise HTTPException(404, "Voter not found.")
     if not voter.get("is_commissioner"):
         raise HTTPException(400, "This person is not a commissioner.")
-    await db.voters.update_many({}, {"$set": {"is_finance_commissioner": False}})
+    await db.voters.update_many(org_query(request), {"$set": {"is_finance_commissioner": False}})
     await db.voters.update_one(
         {"_id": voter["_id"]},
         {"$set": {"is_finance_commissioner": True}}
@@ -1462,9 +1473,9 @@ async def set_finance_commissioner(student_id: str):
 
 
 @app.post("/superadmin/commissioners/{student_id:path}/clear-finance-commissioner")
-async def clear_finance_commissioner(student_id: str):
+async def clear_finance_commissioner(student_id: str, request: Request):
     await db.voters.update_one(
-        get_forgiving_filter(student_id),
+        org_query(request, get_forgiving_filter(student_id)),
         {"$set": {"is_finance_commissioner": False}}
     )
     await log_action("finance_commissioner_cleared", "superadmin", {"student_id": student_id})
@@ -1472,18 +1483,19 @@ async def clear_finance_commissioner(student_id: str):
 
 
 @app.get("/superadmin/finance-commissioner")
-async def get_finance_commissioner():
+async def get_finance_commissioner(request: Request):
     fc = await db.voters.find_one(
-        {"is_finance_commissioner": True},
+        org_query(request, {"is_finance_commissioner": True}),
         {"_id": 0, "student_id": 1, "full_name": 1}
     )
     if not fc:
         return {"full_name": None}
     return fc
 
+
 @app.post("/superadmin/commissioners/{student_id:path}/set-role")
-async def set_commissioner_role(student_id: str, data: CommissionerRoleUpdate):
-    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+async def set_commissioner_role(student_id: str, data: CommissionerRoleUpdate, request: Request):
+    voter = await db.voters.find_one(org_query(request, get_forgiving_filter(student_id)))
     if not voter:
         raise HTTPException(404, "Voter not found.")
     if not voter.get("is_commissioner"):
@@ -1498,9 +1510,9 @@ async def set_commissioner_role(student_id: str, data: CommissionerRoleUpdate):
     return {"student_id": student_id, "commissioner_role": data.role_label}
 
 @app.post("/superadmin/commissioners/{student_id:path}/toggle")
-async def toggle_commissioner(student_id: str):
+async def toggle_commissioner(student_id: str, request: Request):
     """Grant or revoke commissioner status for any voter."""
-    voter = await db.voters.find_one(get_forgiving_filter(student_id))
+    voter = await db.voters.find_one(org_query(request, get_forgiving_filter(student_id)))
     if not voter:
         raise HTTPException(404, "Voter not found.")
     new_val = not voter.get("is_commissioner", False)
