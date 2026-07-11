@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; 
-import axios from 'axios';
+import api, { API_BASE } from './api';
 import OtpInput from './components/OtpInput';
 import BallotBox from './components/BallotBox';
 import Results from './components/Results';
@@ -8,6 +8,8 @@ import SuperAdminDashboard from './components/SuperAdminDashboard';
 import CommissionDashboard from './components/CommissionDashboard';
 import ApplicantPortal from './components/ApplicantPortal';
 import ITAdminDashboard from './components/ITAdminDashboard';
+import FinancialControllerDashboard from './components/FinancialControllerDashboard';
+import OverseerDashboard from './components/OverseerDashboard';
 
 function App() {
   const [supportPdfUrl, setSupportPdfUrl] = useState("");
@@ -47,13 +49,12 @@ function App() {
   const [newPasswordForm, setNewPasswordForm]         = useState({ old_password: '', new_password: '', confirm_password: '' });
   const [passwordChangeError, setPasswordChangeError] = useState('');
   const [passwordChangeSubmitting, setPasswordChangeSubmitting] = useState(false);
-  const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   const [logoUrl, setLogoUrl] = useState("");
 
   
 // --- USEEFFECTS ---
 useEffect(() => {
-  axios.get(`${API_BASE}/superadmin/branding`).then(res => {
+  api.get('/superadmin/branding').then(res => {
     if (res.data.logo_url) {
       setLogoUrl(res.data.logo_url);
     if (res.data.support_pdf_url) 
@@ -126,7 +127,7 @@ useEffect(() => {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/election-status`);
+        const res = await api.get('/election-status');
         setIsElectionOpen(res.data.is_open);
       } catch (err) {
         console.error("Could not fetch election status");
@@ -150,7 +151,7 @@ useEffect(() => {
     useEffect(() => {
       const fetchCandidates = async () => {
         try {
-          const res = await axios.get(`${API_BASE}/candidates`);
+          const res = await api.get('/candidates');
           setCandidates(res.data);
         } catch (err) {
           console.error("Error fetching candidates for guide", err);
