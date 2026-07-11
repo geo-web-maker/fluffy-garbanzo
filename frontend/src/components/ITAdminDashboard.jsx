@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import api from '../api';
 
-export default function ITAdminDashboard({ apiBase, onLogout }) {
-  const API_URL = apiBase.replace(/\/$/, '');
+export default function ITAdminDashboard({ onLogout }) {
 
   const itAdminId   = sessionStorage.getItem('it_admin_id')   || '';
   const itAdminName = sessionStorage.getItem('it_admin_name') || '';
@@ -58,7 +58,7 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
   
   const fetchVoters = async () => {
     try {
-      const res = await axios.get(`${API_URL}/admin/voters`);
+      const res = await api.get('/admin/voters');
       setVoters(res.data);
     } catch (e) {}
   };
@@ -67,7 +67,7 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
     if (!itAdminId) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/it-admin/students/my-requests/${encodeURIComponent(itAdminId)}`);
+      const res = await api.get(`/it-admin/students/my-requests/${encodeURIComponent(itAdminId)}`);
       setMyRequests(res.data);
     } catch (e) {
       console.error('Failed to fetch requests:', e);
@@ -96,7 +96,7 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
       const payment_proof_url = await uploadToCloudinary(paymentProof);
       setUploadingProof(false);
   
-      await axios.post(`${API_URL}/it-admin/students/request-add`, {
+      await api.post('/it-admin/students/request-add', {
         student_id:        addForm.student_id.trim(),
         full_name:         addForm.full_name.trim(),
         phone:             addForm.phone.trim(),
@@ -131,7 +131,7 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
 
     setRemoveSubmitting(true);
     try {
-      await axios.post(`${API_URL}/it-admin/students/request-remove`, {
+      await api.post('/it-admin/students/request-remove', {
         student_id:   removeForm.student_id.trim(),
         reason:       removeForm.reason.trim(),
         requested_by: itAdminId,
@@ -155,7 +155,7 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
 
     setCancelling(prev => ({ ...prev, [changeId]: true }));
     try {
-      await axios.post(`${API_URL}/it-admin/students/requests/${changeId}/cancel`, {
+      await api.post(`/it-admin/students/requests/${changeId}/cancel`, {
         requested_by:     itAdminId,
         cancelled_reason: reason,
       });
@@ -427,7 +427,14 @@ export default function ITAdminDashboard({ apiBase, onLogout }) {
 
                 {req.status === 'pending' && (
                   <p style={{ margin: '6px 0 0', fontSize: '12px', opacity: 0.5 }}>
-                    Votes so far: {Object.keys(req.votes || {}).length} commissioner(s) have responded.
+                    ⏳ Awaiting the Financial Controller's review.
+                  </p>
+                )}
+
+                {(req.status === 'approved' || req.status === 'denied') && (
+                  <p style={{ margin: '6px 0 0', fontSize: '12px', opacity: 0.5 }}>
+                    Decided by: {req.decided_by || '—'}
+                    {req.decision_reason && ` · "${req.decision_reason}"`}
                   </p>
                 )}
 
