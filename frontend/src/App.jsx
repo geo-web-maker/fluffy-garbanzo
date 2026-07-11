@@ -259,11 +259,10 @@ useEffect(() => {
 
    const handleVerifyOtp = async () => {
     try {
-      const res = await api.post(endpoint, payload);
+      const res = await api.post('/verify-otp', {
         student_id: studentId,
         code: otp
       });
-  
       setOtp("");
   
       if (isAdminPath) {
