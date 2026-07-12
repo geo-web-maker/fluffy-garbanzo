@@ -1128,19 +1128,6 @@ const handleSuperAdminRemoveStudent = async () => {
               </div>
             )}
 
-            {/* Ported from AdminDashboard: voter funnel by last_status */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', width: '100%', marginBottom: '16px' }}>
-              <div style={statCard}><small>OTP Sent</small><h3 style={{ color: '#3498db' }}>{stage1}</h3></div>
-              <div style={statCard}><small>Authenticated</small><h3 style={{ color: '#9b59b6' }}>{stage2}</h3></div>
-              <div style={statCard}><small>Completed</small><h3 style={{ color: '#2ecc71' }}>{stage3}</h3></div>
-            </div>
-
-            {duplicateIds.length > 0 && (
-              <div style={{ padding: '12px 16px', border: '1px solid #e74c3c', borderRadius: '10px', marginBottom: '16px', color: '#e74c3c', fontSize: '13px' }}>
-                ⚠️ Duplicate student IDs detected: {[...new Set(duplicateIds)].join(', ')}
-              </div>
-            )}
-
             <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ ...card, flexDirection: 'row', alignItems: 'center', padding: '14px', gap: '12px', flex: 1 }}>
                 <span style={{ fontSize: '13px', opacity: 0.7 }}>Import voters CSV</span>
