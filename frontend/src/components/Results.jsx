@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import FinalReport from './FinalReport';
 
 // 1. SHUFFLE UTILITY (Outside the component)
@@ -12,7 +12,7 @@ const shuffleArray = (array) => {
   return shuffled;
 };
 
-export default function Results({ apiBase }) {
+export default function Results() {
   const [electionData, setElectionData] = useState({ 
     voter_turnout: 0, 
     results: [], 
@@ -32,18 +32,17 @@ export default function Results({ apiBase }) {
   const [commissioners, setCommissioners] = useState([]);
   const [ccList, setCcList] = useState([]);
   
-  const API_URL = apiBase || "https://your-railway-url.app";
-  const PRIVACY_THRESHOLD = 50;
+const PRIVACY_THRESHOLD = 50;
   const BATCH_SIZE = 10; 
 
 const fetchData = async () => {
   try {
     const [resultsRes, statusRes, votersRes, brandingRes, commissionersRes] = await Promise.all([
-      axios.get(`${API_URL}/election-results`),
-      axios.get(`${API_URL}/election-status`),
-      axios.get(`${API_URL}/admin/voters`),
-      axios.get(`${API_URL}/superadmin/branding`).catch(() => ({ data: {} })),
-      axios.get(`${API_URL}/superadmin/commissioners`).catch(() => ({ data: [] }))
+      api.get('/election-results'),
+      api.get('/election-status'),
+      api.get('/admin/voters'),
+      api.get('/superadmin/branding').catch(() => ({ data: {} })),
+      api.get('/superadmin/commissioners').catch(() => ({ data: [] }))
     ]);
 
     const votedList = (votersRes.data || []).filter(v => v.has_voted);
@@ -89,7 +88,7 @@ const fetchData = async () => {
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, [API_URL]);
+  }, []);
 
   useEffect(() => {
     const actualCount = electionData.voter_roll.length;
