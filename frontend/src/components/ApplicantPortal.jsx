@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import api from '../api';
 
 async function uploadToCloudinary(file) {
   const formData = new FormData();
@@ -12,7 +13,7 @@ async function uploadToCloudinary(file) {
   return res.data.secure_url;
 }
 
-export default function ApplicantPortal({ apiBase, orgName = "the Organisation" }) {
+export default function ApplicantPortal({ orgName = "the Organisation" }) {
   const API_URL = apiBase.replace(/\/$/, '');
 
   const [positions, setPositions]   = useState([]);
@@ -37,7 +38,7 @@ export default function ApplicantPortal({ apiBase, orgName = "the Organisation" 
   const [uploadingProof, setUploadingProof] = useState(false);
 
   useEffect(() => {
-    axios.get(`${API_URL}/positions`)
+    axios.get(`/positions`)
       .then(res => setPositions(res.data))
       .catch(() => setPositions([]))
       .finally(() => setPosLoading(false));
@@ -82,7 +83,7 @@ const handleSubmit = async (e) => {
     }
     setUploadingProof(false);
 
-    await axios.post(`${API_URL}/apply`, {
+    await axios.post(`/apply`, {
       student_id:        form.student_id.trim(),
       full_name:         form.full_name.trim(),
       position_id:       form.position_id,
