@@ -14,7 +14,6 @@ async function uploadToCloudinary(file) {
 }
 
 export default function ApplicantPortal({ orgName = "the Organisation" }) {
-  const API_URL = apiBase.replace(/\/$/, '');
 
   const [positions, setPositions]   = useState([]);
   const [posLoading, setPosLoading] = useState(true);
@@ -38,7 +37,7 @@ export default function ApplicantPortal({ orgName = "the Organisation" }) {
   const [uploadingProof, setUploadingProof] = useState(false);
 
   useEffect(() => {
-    axios.get(`/positions`)
+    api.get('/positions')
       .then(res => setPositions(res.data))
       .catch(() => setPositions([]))
       .finally(() => setPosLoading(false));
@@ -83,7 +82,7 @@ const handleSubmit = async (e) => {
     }
     setUploadingProof(false);
 
-    await axios.post(`/apply`, {
+    await api.post(`/apply`, {
       student_id:        form.student_id.trim(),
       full_name:         form.full_name.trim(),
       position_id:       form.position_id,
