@@ -3,13 +3,27 @@
   line-height: 1.5;
   font-weight: 400;
 
-  /* --- LIGHT MODE VARIABLES (Default) --- */
-  --bg-color: #ffffff;
-  --text-color: #213547;
+  /* --- LIGHT MODE (Default) --- */
+  --bg-color: #fafafa;
   --card-bg: #ffffff;
-  --border-color: #dddddd;
+  --surface-2: #f0f1f3;       /* nested panels, hover states */
+  --border-color: #e2e2e5;
+  --text-color: #1e2530;      /* near-navy charcoal, ties back to brand */
+  --text-muted: #6b7280;
   --brand-primary: #003366;
   --brand-accent:  #f1c40f;
+
+  /* --- Semantic status colors (same across light/dark) --- */
+  --success: #2ecc71;
+  --danger:  #e74c3c;
+  --warning: #f1c40f;
+  --info:    #3498db;
+  --accent-purple: #9b59b6;
+
+  /* --- Modals: intentionally always a "paper" surface, not theme-linked --- */
+  --modal-bg: #ffffff;
+  --modal-text: #1e293b;
+  --modal-muted: #475569;
 
   color-scheme: light dark;
   color: var(--text-color);
@@ -21,14 +35,35 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* --- DARK MODE VARIABLES --- */
+/* --- DARK MODE (OS preference, overridden by [data-theme] below) --- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-color: #121212;
-    --text-color: #e0e0e0;
-    --card-bg: #1e1e1e;
-    --border-color: #333333;
+    --bg-color: #0f1420;
+    --card-bg: #1a2030;
+    --surface-2: #242b3d;
+    --border-color: #2a3145;
+    --text-color: #e7e9ee;
+    --text-muted: #9aa3b5;
   }
+}
+
+/* --- Manual override, takes priority over OS preference --- */
+[data-theme="light"] {
+  --bg-color: #fafafa;
+  --card-bg: #ffffff;
+  --surface-2: #f0f1f3;
+  --border-color: #e2e2e5;
+  --text-color: #1e2530;
+  --text-muted: #6b7280;
+}
+
+[data-theme="dark"] {
+  --bg-color: #0f1420;
+  --card-bg: #1a2030;
+  --surface-2: #242b3d;
+  --border-color: #2a3145;
+  --text-color: #e7e9ee;
+  --text-muted: #9aa3b5;
 }
 
 body {
@@ -49,7 +84,7 @@ h1, h2, h3, h4, p {
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--brand-primary);
   text-decoration: inherit;
 }
 
@@ -66,7 +101,7 @@ button {
 }
 
 button:hover {
-  border-color: #646cff;
+  border-color: var(--brand-accent);
 }
 
 /* --- GLOBAL ELECTION PRINT SYSTEM --- */
@@ -186,13 +221,12 @@ button:hover {
 .modal-content, 
 .ballot-review-box, 
 .confirmation-modal {
-  background-color: #ffffff !important;
-  color: #1e293b !important; /* Force deep charcoal base color */
+  background-color: var(--modal-bg) !important;
+  color: var(--modal-text) !important;
   border-radius: 20px;
   padding: 24px;
 }
 
-/* 2. Override global dark mode text colors for EVERYTHING inside a modal */
 .modal-content h1, 
 .modal-content h2, 
 .modal-content h3, 
@@ -201,12 +235,11 @@ button:hover {
 .modal-content span,
 .modal-content strong,
 .modal-content div:not(.progress-bar) {
-  color: #1e293b !important; /* Forces dark text even if system is in Dark Mode */
+  color: var(--modal-text) !important;
   opacity: 1 !important;
 }
 
-/* 3. Handle specific sub-text like "Abstain" or instructions */
 .modal-content .muted-text,
 .modal-content p {
-  color: #475569 !important; /* Professional slate gray for body text */
+  color: var(--modal-muted) !important;
 }
