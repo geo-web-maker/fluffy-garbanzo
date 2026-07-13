@@ -61,7 +61,7 @@ const handleSubmit = async (e) => {
   e.preventDefault();
   setError('');
 
-  if (!form.student_id.trim())  { setError('Student ID is required.');    return; }
+if (!form.student_id.trim())  { setError('Student ID is required.');    return; }
   if (!form.full_name.trim())   { setError('Full name is required.');      return; }
   if (!form.position_id)        { setError('Please select a position.');   return; }
   if (!form.manifesto.trim())   { setError('Manifesto cannot be empty.');  return; }
@@ -70,6 +70,19 @@ const handleSubmit = async (e) => {
 
   setUploading(true);
   try {
+    // Gate: confirm this student_id + name is actually on the voter register
+    // BEFORE spending any Cloudinary uploads on photo/payment proof.
+    try {
+      await api.post('/apply/check-eligibility', {
+        student_id: form.student_id.trim(),
+        full_name:  form.full_name.trim(),
+      });
+    } catch (eligErr) {
+      setError(eligErr.response?.data?.detail || 'Could not verify your details. Please check your Student ID and name.');
+      setUploading(false);
+      return;
+    }
+
     let image_url = '';
     if (form.image) {
       image_url = await uploadToCloudinary(form.image);
