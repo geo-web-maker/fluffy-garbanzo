@@ -332,7 +332,7 @@ export default function BallotBox({ studentId, onVoteSuccess, propCandidates, is
 
 // --- STYLES ---
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 };
-const modalContentStyle = { backgroundColor: '#fff', padding: '24px', borderRadius: '20px', width: '95%', maxWidth: '450px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflow: 'hidden' };
+const modalContentStyle = { backgroundColor: 'var(--card-bg)', padding: '24px', borderRadius: '20px', width: '95%', maxWidth: '450px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflow: 'hidden' };
 const summaryListStyle = { margin: '20px 0', padding: '10px 15px', backgroundColor: 'var(--surface-2)', borderRadius: '12px', border: '1px solid var(--border-color)', maxHeight: '350px', overflowY: 'auto', textAlign: 'left', WebkitOverflowScrolling: 'touch' };
 const summaryRowStyle = { 
   display: 'flex', 
@@ -345,7 +345,7 @@ const summaryRowStyle = {
 const clearAllBtnStyle = { flex: 1, backgroundColor: 'transparent', color: '#f87171', border: '1px solid #f87171', padding: '16px', borderRadius: '14px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontSize: '14px' };
 const cancelBtnStyle = { flex: 1, padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)', color: 'var(--text-muted)', fontWeight: '600', cursor: 'pointer', backgroundColor: 'transparent' };
 const confirmBtnStyle = { flex: 1, padding: '14px', borderRadius: '10px', border: 'none', color: '#fff', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' };
-const footerBarStyle = { position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: '#1e293b', padding: '24px', borderTop: '1px solid #334155', zIndex: 1000 };
+const footerBarStyle = { position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: 'var(--card-bg)', padding: '24px', borderTop: '1px solid var(--border-color)', zIndex: 1000 };
 const submitBallotBtnStyle = { backgroundColor: '#3b82f6', color: 'white', border: 'none', padding: '16px 48px', borderRadius: '14px', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer' };
 
 const positionHeaderStyle = { 
@@ -383,8 +383,8 @@ const horizontalImageStyle = {
   height: '55px',
   borderRadius: '50%',
   objectFit: 'cover',
-  border: '2px solid #475569',
-  backgroundColor: '#334155'
+  border: '2px solid var(--border-color)',
+  backgroundColor: 'var(--surface-2)'
 };
 
 const tickBoxStyle = {
