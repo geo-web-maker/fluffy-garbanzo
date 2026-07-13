@@ -20,10 +20,6 @@
   --info:    #3498db;
   --accent-purple: #9b59b6;
 
-  /* --- Modals: intentionally always a "paper" surface, not theme-linked --- */
-  --modal-bg: #ffffff;
-  --modal-text: #1e293b;
-  --modal-muted: #475569;
 
   color-scheme: light dark;
   color: var(--text-color);
@@ -217,12 +213,11 @@ button:hover {
 
 /* --- UNIVERSAL MODAL TEXT FIX --- */
 
-/* 1. Force the container background to white */
 .modal-content, 
 .ballot-review-box, 
 .confirmation-modal {
-  background-color: var(--modal-bg) !important;
-  color: var(--modal-text) !important;
+  background-color: var(--card-bg) !important;
+  color: var(--text-color) !important;
   border-radius: 20px;
   padding: 24px;
 }
@@ -235,11 +230,11 @@ button:hover {
 .modal-content span,
 .modal-content strong,
 .modal-content div:not(.progress-bar) {
-  color: var(--modal-text) !important;
+  color: var(--text-color) !important;
   opacity: 1 !important;
 }
 
 .modal-content .muted-text,
 .modal-content p {
-  color: var(--modal-muted) !important;
+  color: var(--text-muted) !important;
 }
