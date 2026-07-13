@@ -204,6 +204,10 @@ class OrganizationCreate(BaseModel):
     name: str            # display name, e.g. "KYUCCU"
     slug: str = ""        # url/header-safe identifier; auto-generated from name if blank
 
+class ApplicationEligibilityCheck(BaseModel):
+    student_id: str
+    full_name: str
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -216,6 +220,13 @@ def get_forgiving_filter(student_id: str):
             "$options": "i"
         }
     }
+
+def names_match(registered_name: str, input_name: str) -> bool:
+    reg_parts   = set(registered_name.strip().lower().split())
+    input_parts = set(input_name.strip().lower().split())
+    common_parts = reg_parts.intersection(input_parts)
+    match_threshold = 2 if len(reg_parts) >= 2 else 1
+    return len(common_parts) >= match_threshold
 
 async def send_sms_via_egosms(to_number: str, message_text: str):
     try:
@@ -505,15 +516,8 @@ async def verify_identity(data: IdentityCheck, request: Request):
     if student.get("has_voted"):
         raise HTTPException(status_code=400, detail="Already voted")
 
-    reg_name    = student.get("full_name", "").strip().lower()
-    input_name  = data.full_name.strip().lower()
-    reg_parts   = set(reg_name.split())
-    input_parts = set(input_name.split())
-    common_parts = reg_parts.intersection(input_parts)
-    match_threshold = 2 if len(reg_parts) >= 2 else 1
-
-    if len(common_parts) < match_threshold:
-        logger.warning(f"Name Match Fail: Reg({reg_name}) vs Input({input_name})")
+    if not names_match(student.get("full_name", ""), data.full_name):
+        logger.warning(f"Name Match Fail: Reg({student.get('full_name','')}) vs Input({data.full_name})")
         raise HTTPException(status_code=400, detail="Name mismatch. Please provide your full registered names.")
 
     phone_list = student.get("phone_numbers", [])
@@ -620,6 +624,21 @@ async def get_positions(request: Request):
         positions.append(p)
     return positions
 
+@app.post("/apply/check-eligibility")
+async def check_application_eligibility(data: ApplicationEligibilityCheck, request: Request):
+    student = await db.voters.find_one(org_query(request, get_forgiving_filter(data.student_id)))
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Your Student ID was not found on the voter register. Please contact IT support if you believe this is an error."
+        )
+    if not names_match(student.get("full_name", ""), data.full_name):
+        raise HTTPException(
+            status_code=400,
+            detail="The name entered doesn't match our records for this Student ID. Please enter your full registered name."
+        )
+    return {"status": "eligible"}
+
 @app.post("/apply")
 async def submit_application(data: ApplicationSubmit, request: Request):
     student = await db.voters.find_one(org_query(request, get_forgiving_filter(data.student_id)))
@@ -627,6 +646,11 @@ async def submit_application(data: ApplicationSubmit, request: Request):
         raise HTTPException(
             status_code=404,
             detail="Your Student ID was not found on the voter register. Please contact IT support if you believe this is an error."
+        )
+    if not names_match(student.get("full_name", ""), data.full_name):
+        raise HTTPException(
+            status_code=400,
+            detail="The name entered doesn't match our records for this Student ID."
         )
 
     existing = await db.applications.find_one(org_query(request, {
