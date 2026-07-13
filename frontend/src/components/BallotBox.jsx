@@ -48,7 +48,7 @@ export default function BallotBox({ studentId, onVoteSuccess, propCandidates, is
       // Otherwise (like when a voter logs in), fetch it from the API
       const fetchCandidates = async () => {
         try {
-          const res = await axios.get(`${API_URL}/candidates`);
+          const res = await api.get(`/candidates`);
           setCandidates(res.data);
         } catch (err) { 
           console.error(err); 
@@ -78,7 +78,7 @@ export default function BallotBox({ studentId, onVoteSuccess, propCandidates, is
     const selectedIds = Object.values(ballot);
     setIsVoting(true);
     try {
-      const res = await axios.post(`/vote-bulk`, {
+      const res = await api.post(`/vote-bulk`, {
         student_id: studentId,
         candidate_ids: selectedIds
       });
