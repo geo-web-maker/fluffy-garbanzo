@@ -212,7 +212,7 @@ const fetchData = async () => {
                             <span style={{ fontWeight: '600', color: '#1e293b' }}>{candidate.name}</span>
                             
                             {/* WINNER BADGE */}
-                            {winStatus === 'WINNER' && <span style={badgeStyle('#f1c40f')}>🏆 ELECTED</span>}
+                            {winStatus === 'WINNER' && <span style={badgeStyle('var(--warning)')}>🏆 ELECTED</span>}
 
                             {/* 2. NEW: Mandate Gained Badge */}
                             {winStatus === 'MANDATE_GAINED' && (
@@ -226,7 +226,7 @@ const fetchData = async () => {
                             
                             {/* LIVE STATUS */}
                             {isElectionOpen && isTopCandidate && (
-                              <span style={{ color: isTie ? '#e67e22' : '#2ecc71', fontSize: '10px', fontWeight: 'bold' }}>
+                              <span style={{ color: isTie ? '#e67e22' : 'var(--success)', fontSize: '10px', fontWeight: 'bold' }}>
                                 {isTie ? "● DEADLOCK" : "● LEADING"}
                               </span>
                             )}
@@ -240,7 +240,7 @@ const fetchData = async () => {
                              ...progressBar(percentage, winStatus === 'WINNER'),
                              backgroundColor: (isTie && isTopCandidate) ? '#e67e22' : 
                                (winStatus === 'MANDATE_GAINED' ? '#10b981' : 
-                               (winStatus === 'WINNER' ? '#f1c40f' : '#3b82f6'))
+                               (winStatus === 'WINNER' ? 'var(--warning)' : '#3b82f6'))
                            }} />
                         </div>
                       </div>
@@ -326,7 +326,7 @@ const bannerStyle = (isOpen, isCertified) => ({
   // Background logic
   background: isOpen ? '#f0fdf4' : (isCertified ? '#ecfdf5' : '#fff7ed'), 
   // Border logic
-  borderBottom: `4px solid ${isOpen ? '#2ecc71' : (isCertified ? '#10b981' : '#f39c12')}`,
+  borderBottom: `4px solid ${isOpen ? 'var(--success)' : (isCertified ? '#10b981' : '#f39c12')}`,
   boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
 });
 
@@ -346,7 +346,7 @@ const positionHeaderStyle = {
 
 const progressContainer = { width: '100%', backgroundColor: '#f1f5f9', borderRadius: '20px', height: '10px', overflow: 'hidden' };
 const progressBar = (pct, isWinner) => ({ 
-  width: `${pct}%`, height: '100%', backgroundColor: isWinner ? '#f1c40f' : '#3b82f6', transition: 'width 1.5s ease-in-out' 
+  width: `${pct}%`, height: '100%', backgroundColor: isWinner ? 'var(--warning)' : '#3b82f6', transition: 'width 1.5s ease-in-out' 
 });
 
 const tieWarningBanner = {
