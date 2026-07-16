@@ -1,27 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function OtpInput({ otp, setOtp, onVerify, onBack, phoneNumber }) {
+export default function OtpInput({ otp, setOtp, onVerify, onBack, phoneNumber, isSubmitting = false }) {
   const [isLocked, setIsLocked] = useState(false);
   const [hasError, setHasError] = useState(false);
   const inputRef = useRef(null);
 
-  // Auto-focus the input for a better experience
   useEffect(() => {
     if (inputRef.current) inputRef.current.focus();
   }, []);
 
   const handleVerify = async () => {
-    setHasError(false); // Reset error state on new attempt
+    setHasError(false);
     try {
       await onVerify();
     } catch (err) {
-      // 1. STRICT LOGIC: Only lock out if the Backend sends a 403.
       if (err.status === 403 || (err.response && err.response.status === 403)) {
         setIsLocked(true);
       } else {
-        // 2. RELAXED LOGIC: For typos (400 errors), just show a warning.
         setHasError(true);
-        setOtp(""); 
+        setOtp("");
         if (inputRef.current) inputRef.current.focus();
       }
     }
@@ -96,20 +93,20 @@ export default function OtpInput({ otp, setOtp, onVerify, onBack, phoneNumber })
 
       <div style={{ marginTop: '30px', display: 'flex', gap: '15px', justifyContent: 'center' }}>
         <button onClick={onBack} style={secondaryBtnStyle}>Back</button>
-        <button 
+          <button 
           onClick={handleVerify} 
-          disabled={otp.length < 6}
+          disabled={otp.length < 6 || isSubmitting}
           style={{ 
-            backgroundColor: otp.length < 6 ? 'var(--surface-2)' : '#2ecc71',
+            backgroundColor: (otp.length < 6 || isSubmitting) ? 'var(--surface-2)' : '#2ecc71',
             color: 'white', 
             padding: '12px 30px', 
             border: 'none', 
             borderRadius: '8px', 
             fontWeight: 'bold', 
-            cursor: otp.length < 6 ? 'default' : 'pointer' 
+            cursor: (otp.length < 6 || isSubmitting) ? 'default' : 'pointer' 
           }}
         >
-          Verify Account
+          {isSubmitting ? 'Verifying…' : 'Verify Account'}
         </button>
       </div>
     </div>
