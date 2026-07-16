@@ -256,11 +256,8 @@ export default function CommissionDashboard({ onLogout }) {
         {/* ── Application cards ── */}
         {activeTab !== 'student_changes' && currentList.map(app => {
           const vc      = voteCount(app);
-          const rvc     = removalVoteCount(app);
           const myVote  = myVoteFor(app);
-          const myRVote = myRemovalVoteFor(app);
           const isVotingNow        = voting[app._id];
-          const isRemovalVotingNow = voting[`remove_${app._id}`];
 
           return (
             <div key={app._id} style={appCard}>
@@ -333,24 +330,6 @@ export default function CommissionDashboard({ onLogout }) {
                   </span>
                   <span style={{ color: '#e74c3c', fontWeight: '600', fontSize: '13px' }}>
                     {vc.deny} deny
-                  </span>
-                  <span style={{ opacity: 0.45, fontSize: '12px' }}>
-                    · majority needs {majorityRequired(totalCommissioners)}
-                  </span>
-                </div>
-              )}
-
-              {/* Removal vote tally */}
-              {app.status === 'approved' && (
-                <div style={tallyRow}>
-                  <span style={{ opacity: 0.6, fontSize: '12px' }}>
-                    Removal votes ({rvc.total} of {totalCommissioners}):
-                  </span>
-                  <span style={{ color: '#e74c3c', fontWeight: '600', fontSize: '13px' }}>
-                    {rvc.approve} for removal
-                  </span>
-                  <span style={{ color: '#2ecc71', fontWeight: '600', fontSize: '13px' }}>
-                    {rvc.deny} against
                   </span>
                   <span style={{ opacity: 0.45, fontSize: '12px' }}>
                     · majority needs {majorityRequired(totalCommissioners)}
@@ -434,36 +413,12 @@ export default function CommissionDashboard({ onLogout }) {
                 </div>
               )}
 
-              {/* ── Approved: removal voting ── */}
-              {app.status === 'approved' && (
+              {/* ── Approved: confirm the original vote was counted, no removal UI here ── */}
+              {app.status === 'approved' && myVote && (
                 <div style={{ marginTop: '14px' }}>
-                  {myRVote ? (
-                    <div style={myVoteRow(myRVote === 'approve' ? 'deny' : 'approve')}>
-                      {myRVote === 'approve'
-                        ? '🗑️ You voted to remove this candidate.'
-                        : '🛡️ You voted to keep this candidate.'}
-                      <span style={{ opacity: 0.6, fontSize: '12px', marginLeft: '8px' }}>
-                        Resolves once a majority is reached.
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <button
-                        style={{ ...redBtn, flex: 1 }}
-                        disabled={isRemovalVotingNow}
-                        onClick={() => castRemovalVote(app._id, 'approve')}
-                      >
-                        {isRemovalVotingNow ? 'Submitting…' : '🗑️ Vote to Remove'}
-                      </button>
-                      <button
-                        style={{ ...ghostBtn, flex: 1 }}
-                        disabled={isRemovalVotingNow}
-                        onClick={() => castRemovalVote(app._id, 'deny')}
-                      >
-                        🛡️ Vote to Keep
-                      </button>
-                    </div>
-                  )}
+                  <div style={myVoteRow(myVote)}>
+                    ✅ Your vote was counted — you voted <strong>{myVote}</strong> on this application.
+                  </div>
                 </div>
               )}
 
