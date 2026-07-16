@@ -619,13 +619,14 @@ const handleVerifyIdentity = async (selectedIdx = null) => {
                 For your security, you must set a new password before continuing.
               </p>
         
-              <form onSubmit={handleSetNewPassword}>
+               <form onSubmit={handleSetNewPassword}>
                 <input
                   type="password"
                   placeholder="Temporary password (from SMS)"
                   style={inputStyle}
                   value={newPasswordForm.old_password}
                   onChange={e => setNewPasswordForm({ ...newPasswordForm, old_password: e.target.value })}
+                  disabled={passwordChangeSubmitting}
                 />
                 <input
                   type="password"
@@ -633,6 +634,7 @@ const handleVerifyIdentity = async (selectedIdx = null) => {
                   style={inputStyle}
                   value={newPasswordForm.new_password}
                   onChange={e => setNewPasswordForm({ ...newPasswordForm, new_password: e.target.value })}
+                  disabled={passwordChangeSubmitting}
                 />
                 <input
                   type="password"
@@ -640,13 +642,7 @@ const handleVerifyIdentity = async (selectedIdx = null) => {
                   style={inputStyle}
                   value={newPasswordForm.confirm_password}
                   onChange={e => setNewPasswordForm({ ...newPasswordForm, confirm_password: e.target.value })}
-                />
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  style={{ ...inputStyle, color: '#1e293b', backgroundColor: '#f8fafc' }}
-                  value={newPasswordForm.confirm_password}
-                  onChange={e => setNewPasswordForm({ ...newPasswordForm, confirm_password: e.target.value })}
+                  disabled={passwordChangeSubmitting}
                 />
         
                 {passwordChangeError && (
@@ -657,10 +653,15 @@ const handleVerifyIdentity = async (selectedIdx = null) => {
         
                 <button
                   type="submit"
-                  style={{ ...primaryBtnStyle, backgroundcolor: 'var(--success)' }}
+                  style={{
+                    ...primaryBtnStyle,
+                    backgroundColor: 'var(--success)',
+                    opacity: passwordChangeSubmitting ? 0.7 : 1,
+                    cursor: passwordChangeSubmitting ? 'wait' : 'pointer',
+                  }}
                   disabled={passwordChangeSubmitting}
                 >
-                  {passwordChangeSubmitting ? 'Updating…' : 'Set Password & Continue'}
+                  {passwordChangeSubmitting ? '⏳ Setting password…' : 'Set Password & Continue'}
                 </button>
               </form>
             </div>
