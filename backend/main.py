@@ -41,11 +41,11 @@ EGOSMS_USER = os.getenv("EGOSMS_USERNAME")
 EGOSMS_PASS = os.getenv("EGOSMS_PASSWORD")
 EGOSMS_SENDER_ID = os.getenv("ESMS_SENDER_ID", "SMS").strip()
 
-SUPER_ADMIN_ID   = os.getenv("SUPER_ADMIN_ID")
-SUPER_ADMIN_NAME = os.getenv("SUPER_ADMIN_NAME")
-if not SUPER_ADMIN_ID or not SUPER_ADMIN_NAME:
+SUPER_ADMIN_ID       = os.getenv("SUPER_ADMIN_ID")
+SUPER_ADMIN_PASSWORD = os.getenv("SUPER_ADMIN_PASSWORD")
+if not SUPER_ADMIN_ID or not SUPER_ADMIN_PASSWORD:
     raise RuntimeError(
-        "SUPER_ADMIN_ID / SUPER_ADMIN_NAME must be set via environment variables. "
+        "SUPER_ADMIN_ID / SUPER_ADMIN_PASSWORD must be set via environment variables. "
         "No hardcoded fallback is used on purpose."
     )
 
@@ -986,7 +986,7 @@ async def verify_admin(data: AdminLoginCheck, request: Request):
 
 async def _verify_admin_credentials(data: AdminLoginCheck, request: Request):
     # ── Superadmin ── (env var based, no hashing needed — this is you)
-    if data.email == SUPER_ADMIN_ID and data.password == SUPER_ADMIN_NAME:
+    if data.email == SUPER_ADMIN_ID and data.password == SUPER_ADMIN_PASSWORD:
         if SUPERADMIN_TOTP_SECRET:
             if not data.totp_code:
                 # Distinct status code from "wrong code" on purpose: this is
