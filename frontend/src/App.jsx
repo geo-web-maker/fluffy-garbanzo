@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'; 
+import { Analytics } from '@vercel/analytics/react';
 import api, { API_BASE, ADMIN_TOKEN_KEY } from './api';
 import OtpInput from './components/OtpInput';
 import BallotBox from './components/BallotBox';
@@ -776,6 +777,7 @@ const handleVerifyIdentity = async (selectedIdx = null) => {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
