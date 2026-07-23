@@ -90,7 +90,54 @@ async def lifespan(app: FastAPI):
     yield
     client.close()
 
-app = FastAPI(title="BallotBox Master API", lifespan=lifespan)
+# =============================================================================
+# API DOCS (Swagger/ReDoc) — locked down by default
+# =============================================================================
+# DOCS_ENABLED unset or "false" (the default): /docs, /redoc, and
+# /openapi.json don't exist as routes at all — a plain 404, same as any
+# other unknown path. No API surface, no schema, nothing to unlock.
+#
+# DOCS_ENABLED=true: routes are registered, but ALSO require HTTP Basic Auth
+# via DOCS_USERNAME/DOCS_PASSWORD (separate from your admin login — Swagger
+# UI has no way to prompt for a Bearer token before it loads, so this is the
+# standard lightweight pattern instead). Set all three env vars together;
+# turning docs on without setting credentials fails closed (422/401), not open.
+DOCS_ENABLED = os.getenv("DOCS_ENABLED", "false").lower() == "true"
+DOCS_USERNAME = os.getenv("DOCS_USERNAME")
+DOCS_PASSWORD = os.getenv("DOCS_PASSWORD")
+
+app = FastAPI(
+    title="BallotBox Master API",
+    lifespan=lifespan,
+    docs_url="/docs" if DOCS_ENABLED else None,
+    redoc_url="/redoc" if DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if DOCS_ENABLED else None,
+)
+
+if DOCS_ENABLED:
+    import secrets as _secrets
+    import base64 as _base64
+
+    @app.middleware("http")
+    async def docs_basic_auth_middleware(request: Request, call_next):
+        if request.url.path in ("/docs", "/redoc", "/openapi.json"):
+            auth_header = request.headers.get("Authorization", "")
+            ok = False
+            if auth_header.startswith("Basic ") and DOCS_USERNAME and DOCS_PASSWORD:
+                try:
+                    decoded = _base64.b64decode(auth_header[len("Basic "):]).decode()
+                    username, _, password = decoded.partition(":")
+                    ok = _secrets.compare_digest(username, DOCS_USERNAME) and \
+                         _secrets.compare_digest(password, DOCS_PASSWORD)
+                except Exception:
+                    ok = False
+            if not ok:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Docs require authentication."},
+                    headers={"WWW-Authenticate": "Basic"},
+                )
+        return await call_next(request)
 
 client = motor.motor_asyncio.AsyncIOMotorClient(
     MONGO_URL,
